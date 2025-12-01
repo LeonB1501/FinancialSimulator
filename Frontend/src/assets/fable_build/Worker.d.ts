@@ -1,0 +1,1 @@
+export function runSimulationWrapper(jsonInput: string): string;

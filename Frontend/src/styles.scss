@@ -1,0 +1,417 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+// ============================================
+// BASE STYLES
+// ============================================
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply antialiased bg-surface-50 text-surface-900;
+}
+
+// ============================================
+// PROTOTYPE SPECIFIC STYLES
+// ============================================
+
+/* --- Landing Page --- */
+.gradient-bg {
+  background: linear-gradient(135deg, #1E3A5F 0%, #0F1F33 50%, #162D4A 100%);
+}
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.path-animation {
+  animation: pathDraw 3s ease-in-out infinite;
+}
+@keyframes pathDraw {
+  0%, 100% { stroke-dashoffset: 1000; }
+  50% { stroke-dashoffset: 0; }
+}
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.scroll-indicator {
+  animation: bounce 2s infinite;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(10px); }
+}
+
+/* --- Results Page --- */
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+/* --- Strategy Builder --- */
+.step-line {
+  position: absolute;
+  left: 15px;
+  top: 48px;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #00D4AA 0%, #E2E8F0 100%);
+}
+.correlation-cell {
+  transition: background-color 0.2s;
+}
+.correlation-cell:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #00D4AA;
+}
+
+// ============================================
+// CUSTOM UTILITY CLASSES
+// ============================================
+
+@layer components {
+  // Buttons
+  .btn {
+    @apply inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-500 shadow-soft;
+  }
+
+  .btn-secondary {
+    @apply btn border border-surface-200 text-surface-700 hover:bg-surface-50 focus:ring-surface-300;
+  }
+
+  .btn-ghost {
+    @apply btn text-surface-600 hover:bg-surface-100 focus:ring-surface-300;
+  }
+
+  .btn-sm {
+    @apply px-3 py-2 text-sm;
+  }
+
+  .btn-md {
+    @apply px-4 py-2.5 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  // Cards
+  .card {
+    @apply bg-white rounded-2xl border border-surface-200 shadow-soft;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-medium hover:border-surface-300 transition-all duration-200;
+  }
+
+  // Form inputs (Raw HTML style)
+  .input {
+    @apply w-full h-12 px-4 border border-surface-200 rounded-lg text-surface-900 placeholder-surface-400 
+           focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent transition-all duration-200;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-surface-700 mb-2;
+  }
+
+  // Section headers
+  .section-title {
+    @apply text-2xl font-bold text-surface-900;
+  }
+
+  .section-subtitle {
+    @apply text-surface-500 mt-1;
+  }
+
+  // Gradient borders
+  .gradient-border-left {
+    @apply relative pl-4;
+    
+    &::before {
+      content: '';
+      @apply absolute left-0 top-0 bottom-0 w-1 rounded-full;
+      background: linear-gradient(to bottom, theme('colors.accent.500'), theme('colors.primary.500'));
+    }
+  }
+
+  // Glassmorphism
+  .glass {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-surface-900/80 backdrop-blur-lg border border-surface-700/50;
+  }
+}
+
+// ============================================
+// ANGULAR MATERIAL OVERRIDES
+// ============================================
+// NOTE: Using standard CSS here to avoid SASS/Tailwind !important conflicts
+
+// Mat Form Field - Force clean look
+.mat-mdc-form-field {
+  width: 100%;
+}
+
+.mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.mat-mdc-text-field-wrapper {
+  background-color: white !important;
+  border-radius: 0.5rem !important;
+  padding: 0 !important;
+  height: 48px !important;
+}
+
+.mat-mdc-form-field-infix {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  min-height: 48px !important;
+}
+
+.mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__leading,
+.mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__notch,
+.mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__trailing {
+  border-color: #E2E8F0 !important;
+}
+
+.mat-mdc-form-field.mat-focused .mdc-notched-outline .mdc-notched-outline__leading,
+.mat-mdc-form-field.mat-focused .mdc-notched-outline .mdc-notched-outline__notch,
+.mat-mdc-form-field.mat-focused .mdc-notched-outline .mdc-notched-outline__trailing {
+  border-color: #00D4AA !important;
+  border-width: 2px !important;
+}
+
+// Mat Button
+.mat-mdc-button.mat-primary,
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-flat-button.mat-primary {
+  background-color: #00D4AA !important;
+}
+
+.mat-mdc-button.mat-primary:hover,
+.mat-mdc-raised-button.mat-primary:hover,
+.mat-mdc-flat-button.mat-primary:hover {
+  background-color: #00A080 !important;
+}
+
+// Mat Tab Group
+.mat-mdc-tab-group .mat-mdc-tab-header {
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.mat-mdc-tab-group .mat-mdc-tab {
+  color: #475569;
+}
+
+.mat-mdc-tab-group .mat-mdc-tab.mdc-tab--active {
+  color: #1E3A5F;
+}
+
+.mat-mdc-tab-group .mdc-tab-indicator__content--underline {
+  border-color: #00D4AA !important;
+}
+
+// Mat Dialog
+.mat-mdc-dialog-container,
+.mat-mdc-dialog-container .mdc-dialog__surface {
+  border-radius: 1rem !important;
+}
+
+// Mat Stepper
+.mat-stepper-horizontal {
+  background-color: transparent !important;
+}
+
+.mat-step-header .mat-step-icon {
+  background-color: #CBD5E1;
+}
+
+.mat-step-header .mat-step-icon.mat-step-icon-selected {
+  background-color: #00D4AA;
+}
+
+.mat-step-header .mat-step-icon.mat-step-icon-state-done {
+  background-color: #10B981;
+}
+
+// Mat Menu
+.mat-mdc-menu-panel {
+  border-radius: 0.75rem !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+.mat-mdc-menu-item {
+  color: #334155 !important;
+}
+
+.mat-mdc-menu-item:hover {
+  background-color: #F8FAFC !important;
+}
+
+// Mat Select
+.mat-mdc-select-panel {
+  background-color: white !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+.mat-mdc-option.mdc-list-item--selected {
+  background-color: #F0FDFA !important;
+  color: #00A080 !important;
+}
+
+// Mat Snackbar
+.mat-mdc-snack-bar-container.success-snackbar .mdc-snackbar__surface {
+  background-color: #16a34a !important;
+}
+
+.mat-mdc-snack-bar-container.error-snackbar .mdc-snackbar__surface {
+  background-color: #dc2626 !important;
+}
+
+// Mat Progress Spinner
+.mat-mdc-progress-spinner circle {
+  stroke: #00D4AA !important;
+}
+
+// ============================================
+// MONACO EDITOR OVERRIDES
+// ============================================
+
+.monaco-editor {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.monaco-editor .margin {
+  background-color: #F8FAFC !important;
+}
+
+.monaco-editor .line-numbers {
+  color: #94A3B8 !important;
+}
+
+// ============================================
+// CHART.JS OVERRIDES
+// ============================================
+
+.chartjs-tooltip {
+  background-color: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: white;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+// ============================================
+// SCROLLBAR STYLING
+// ============================================
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #F1F5F9;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94A3B8;
+}
+
+// ============================================
+// ANIMATIONS
+// ============================================
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+.page-enter {
+  opacity: 0;
+  transform: translateY(1rem);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 0.3s ease-out;
+}
+
+// ============================================
+// RESPONSIVE UTILITIES
+// ============================================
+
+.container-fluid {
+  width: 100%;
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-fluid {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-fluid {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

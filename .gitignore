@@ -1,0 +1,81 @@
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Backend (.NET/C#)
+Backend/**/*.user
+Backend/**/bin/
+Backend/**/obj/
+Backend/**/.vs/
+Backend/**/.vscode/
+Backend/**/*.suo
+Backend/**/*.user
+Backend/**/*.userosscache
+Backend/**/*.sln.docstates
+Backend/**/.config/
+Backend/**/*.DotSettings.user
+
+# Frontend (Angular/Node.js)
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.angular/
+Frontend/.angular-cache/
+Frontend/npm-debug.log*
+Frontend/yarn-debug.log*
+Frontend/yarn-error.log*
+Frontend/.env
+Frontend/.env.local
+Frontend/.env.*.local
+
+# DataPipeline (Python)
+DataPipeline/__pycache__/
+DataPipeline/**/*.py[cod]
+DataPipeline/**/*$py.class
+DataPipeline/**/*.so
+DataPipeline/.venv/
+DataPipeline/venv/
+DataPipeline/.Python
+DataPipeline/**/.pytest_cache/
+DataPipeline/**/*.egg-info/
+DataPipeline/dist/
+DataPipeline/build/
+DataPipeline/.env
+DataPipeline/**/.ipynb_checkpoints
+
+# Logs
+*.log
+logs/
+
+# OS Files
+Thumbs.db
+desktop.ini
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+
+# Test coverage
+coverage/
+*.cover
+.coverage
+htmlcov/
+
+# Build outputs
+dist/
+build/
+*.dll
+*.exe
+*.pdb
