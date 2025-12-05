@@ -45,22 +45,22 @@ interface WizardStep {
   template: `
     <qs-header />
     
-    <div class="pt-[72px] min-h-screen bg-surface-50">
+    <div class="pt-[72px] min-h-screen bg-surface-50 dark:bg-surface-900 transition-colors duration-300">
       <div class="flex">
         <!-- Left Sidebar - Progress Tracker -->
-        <aside class="hidden lg:block w-[320px] flex-shrink-0 border-r border-surface-200 bg-white min-h-[calc(100vh-72px)] p-6 fixed left-0 top-[72px] bottom-0 overflow-y-auto">
+        <aside class="hidden lg:block w-[320px] flex-shrink-0 border-r border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 min-h-[calc(100vh-72px)] p-6 fixed left-0 top-[72px] bottom-0 overflow-y-auto transition-colors duration-300">
           <div class="mb-8">
-            <h2 class="text-lg font-semibold text-surface-900 mb-2">Build Strategy</h2>
-            <p class="text-sm text-surface-500">Complete each step to configure your simulation.</p>
+            <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-2">Build Strategy</h2>
+            <p class="text-sm text-surface-500 dark:text-surface-400">Complete each step to configure your simulation.</p>
           </div>
 
           <!-- Progress Bar -->
           <div class="mb-8">
             <div class="flex justify-between text-sm mb-2">
-              <span class="text-surface-600">Progress</span>
-              <span class="font-medium text-accent-600">{{ progressPercent() }}%</span>
+              <span class="text-surface-600 dark:text-surface-400">Progress</span>
+              <span class="font-medium text-accent-600 dark:text-accent-400">{{ progressPercent() }}%</span>
             </div>
-            <div class="h-2 bg-surface-100 rounded-full overflow-hidden">
+            <div class="h-2 bg-surface-100 dark:bg-surface-700 rounded-full overflow-hidden">
               <div 
                 class="h-full bg-gradient-to-r from-accent-500 to-accent-400 transition-all duration-300"
                 [style.width.%]="progressPercent()"
@@ -89,7 +89,7 @@ interface WizardStep {
                 <div class="flex-1 min-w-0">
                   <p [class]="getStepLabelClass(i)">{{ step.label }}</p>
                   @if (i === currentStep()) {
-                    <p class="text-xs text-accent-500 mt-0.5">Current step</p>
+                    <p class="text-xs text-accent-500 dark:text-accent-400 mt-0.5">Current step</p>
                   }
                 </div>
               </button>
@@ -97,7 +97,7 @@ interface WizardStep {
           </nav>
 
           <!-- Save Draft Button -->
-          <div class="mt-8 pt-8 border-t border-surface-200">
+          <div class="mt-8 pt-8 border-t border-surface-200 dark:border-surface-700">
             <button
               (click)="saveDraft()"
               [disabled]="strategyService.saving()"
@@ -109,16 +109,16 @@ interface WizardStep {
         </aside>
 
         <!-- Main Content Area -->
-        <main class="flex-1 lg:ml-[320px] pb-24">
+        <main class="flex-1 lg:ml-[320px] pb-24 transition-all duration-300">
           <!-- Mobile Progress -->
-          <div class="lg:hidden sticky top-[72px] z-40 bg-white border-b border-surface-200 px-4 py-3">
+          <div class="lg:hidden sticky top-[72px] z-40 bg-white dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700 px-4 py-3 transition-colors duration-300">
             <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-medium text-surface-900">
+              <span class="text-sm font-medium text-surface-900 dark:text-surface-100">
                 Step {{ currentStep() + 1 }}: {{ steps[currentStep()].shortLabel }}
               </span>
-              <span class="text-sm text-accent-600">{{ progressPercent() }}%</span>
+              <span class="text-sm text-accent-600 dark:text-accent-400">{{ progressPercent() }}%</span>
             </div>
-            <div class="h-1.5 bg-surface-100 rounded-full overflow-hidden">
+            <div class="h-1.5 bg-surface-100 dark:bg-surface-700 rounded-full overflow-hidden">
               <div 
                 class="h-full bg-accent-500 transition-all duration-300"
                 [style.width.%]="progressPercent()"
@@ -126,8 +126,11 @@ interface WizardStep {
             </div>
           </div>
 
-          <!-- Step Content (CENTERED) -->
-          <div class="max-w-4xl mx-auto p-6 lg:p-10">
+          <!-- Step Content -->
+          <div class="mx-auto p-6 lg:p-10 transition-all duration-300"
+               [class.max-w-4xl]="currentStep() !== 3"
+               [class.max-w-[1600px]]="currentStep() === 3">
+            
             @switch (currentStep()) {
               @case (0) {
                 <qs-mode-selection 
@@ -169,7 +172,7 @@ interface WizardStep {
       </div>
 
       <!-- Bottom Action Bar -->
-      <div class="fixed bottom-0 left-0 right-0 lg:left-[320px] bg-white border-t border-surface-200 px-6 py-4 z-40">
+      <div class="fixed bottom-0 left-0 right-0 lg:left-[320px] bg-white dark:bg-surface-800 border-t border-surface-200 dark:border-surface-700 px-6 py-4 z-40 transition-colors duration-300">
         <div class="max-w-4xl mx-auto flex items-center justify-between">
           <button
             (click)="previousStep()"
@@ -250,52 +253,105 @@ export class StrategyBuilderComponent implements OnInit {
     {
       id: 'params',
       label: 'Simulation Parameters',
-      shortLabel: 'Parameters',
-      isComplete: () => !!this.strategyService.draft().scenario && !!this.strategyService.draft().simulationConfig,
+      shortLabel: 'Params',
+      isComplete: () => !!this.strategyService.draft().scenario,
       isValid: () => !!this.strategyService.draft().scenario,
     },
     {
       id: 'dsl',
       label: 'Strategy DSL',
       shortLabel: 'DSL',
-      isComplete: () => !!this.strategyService.draft().dsl?.code,
+      // DSL is valid even if empty (default strategy), but complete only if code exists
+      isComplete: () => (this.strategyService.draft().dsl?.code?.length || 0) > 0,
       isValid: () => true,
     },
     {
       id: 'review',
       label: 'Review & Run',
       shortLabel: 'Review',
-      isComplete: () => !!this.strategyService.draft().name,
-      isValid: () => !!this.strategyService.draft().name,
+      isComplete: () => false,
+      isValid: () => true,
     },
   ];
 
   readonly progressPercent = computed(() => {
-    const completedSteps = this.steps.filter((step, i) => step.isComplete() && i <= this.currentStep()).length;
-    return Math.round((completedSteps / this.steps.length) * 100);
+    const completed = this.steps.filter((s, i) => i < this.currentStep() || s.isComplete()).length;
+    return Math.round((completed / this.steps.length) * 100);
   });
 
   ngOnInit(): void {
-    const editId = this.route.snapshot.queryParamMap.get('edit');
+    // FIX: Clear draft if not editing to ensure clean slate
+    const editId = this.route.snapshot.queryParams['edit'];
     if (editId) {
-      this.editingStrategyId = editId;
-      this.loadExistingStrategy(editId);
+      this.loadStrategy(editId);
     } else {
-      this.initializeNewStrategy();
+      this.strategyService.clearDraft();
     }
   }
 
-  private initializeNewStrategy(): void {
-    this.strategyService.clearDraft();
-    this.strategyService.updateDraft({
-      simulationConfig: DEFAULT_SIMULATION_CONFIG,
+  private loadStrategy(id: string): void {
+    this.strategyService.loadStrategy(id).subscribe(strategy => {
+      this.editingStrategyId = id;
+      this.strategyService.updateDraft({
+        name: strategy.name,
+        description: strategy.description,
+        mode: strategy.mode,
+        scenario: strategy.scenario,
+        indices: strategy.indices,
+        correlationMatrix: strategy.correlationMatrix,
+        customTickers: strategy.customTickers,
+        simulationConfig: strategy.simulationConfig,
+        dsl: strategy.dsl,
+      });
     });
   }
 
-  private loadExistingStrategy(id: string): void {
-    this.strategyService.loadStrategy(id).subscribe(strategy => {
-      this.strategyService.loadDraftFromStrategy(strategy);
-    });
+  getStepClass(index: number): string {
+    if (index === this.currentStep()) {
+      return 'bg-accent-50 dark:bg-accent-900/30 border border-accent-200 dark:border-accent-700';
+    }
+    if (this.steps[index].isComplete()) {
+      return 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30';
+    }
+    if (!this.canNavigateToStep(index)) {
+      return 'bg-surface-50 dark:bg-surface-800 border border-transparent opacity-50 cursor-not-allowed';
+    }
+    return 'bg-surface-50 dark:bg-surface-800 border border-transparent hover:bg-surface-100 dark:hover:bg-surface-700';
+  }
+
+  getStepNumberClass(index: number): string {
+    const base = 'w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold flex-shrink-0';
+    if (index === this.currentStep()) {
+      return `${base} bg-accent-500 text-white`;
+    }
+    if (this.steps[index].isComplete()) {
+      return `${base} bg-green-500 text-white`;
+    }
+    return `${base} bg-surface-200 dark:bg-surface-600 text-surface-600 dark:text-surface-300`;
+  }
+
+  getStepLabelClass(index: number): string {
+    if (index === this.currentStep()) {
+      return 'font-semibold text-accent-700 dark:text-accent-400';
+    }
+    if (this.steps[index].isComplete()) {
+      return 'font-medium text-green-700 dark:text-green-400';
+    }
+    return 'font-medium text-surface-600 dark:text-surface-400';
+  }
+
+  canNavigateToStep(index: number): boolean {
+    if (index <= this.currentStep()) return true;
+    for (let i = 0; i < index; i++) {
+      if (!this.steps[i].isComplete()) return false;
+    }
+    return true;
+  }
+
+  goToStep(index: number): void {
+    if (this.canNavigateToStep(index)) {
+      this.currentStep.set(index);
+    }
   }
 
   nextStep(): void {
@@ -310,52 +366,8 @@ export class StrategyBuilderComponent implements OnInit {
     }
   }
 
-  goToStep(index: number): void {
-    if (this.canNavigateToStep(index)) {
-      this.currentStep.set(index);
-    }
-  }
-
-  canNavigateToStep(index: number): boolean {
-    if (index <= this.currentStep()) return true;
-    for (let i = 0; i < index; i++) {
-      if (!this.steps[i].isValid()) return false;
-    }
-    return true;
-  }
-
-  getStepClass(index: number): string {
-    if (index === this.currentStep()) {
-      return 'bg-accent-50 border-2 border-accent-200';
-    }
-    if (this.steps[index].isComplete()) {
-      return 'bg-green-50 hover:bg-green-100';
-    }
-    if (this.canNavigateToStep(index)) {
-      return 'hover:bg-surface-50';
-    }
-    return 'opacity-50 cursor-not-allowed';
-  }
-
-  getStepNumberClass(index: number): string {
-    const base = 'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0';
-    if (index === this.currentStep()) {
-      return `${base} bg-accent-500 text-white`;
-    }
-    if (this.steps[index].isComplete() && index !== this.currentStep()) {
-      return `${base} bg-green-500 text-white`;
-    }
-    return `${base} bg-surface-200 text-surface-600`;
-  }
-
-  getStepLabelClass(index: number): string {
-    if (index === this.currentStep()) {
-      return 'font-medium text-accent-700';
-    }
-    if (this.steps[index].isComplete()) {
-      return 'font-medium text-green-700';
-    }
-    return 'text-surface-600';
+  canSubmit(): boolean {
+    return this.steps.slice(0, -1).every(s => s.isComplete());
   }
 
   onModeSelected(mode: SimulationMode): void {
@@ -363,15 +375,17 @@ export class StrategyBuilderComponent implements OnInit {
   }
 
   onIndicesChanged(indices: any[]): void {
-    this.strategyService.setDraftIndices(indices);
+    this.strategyService.updateDraft({ indices });
   }
 
-  onParametersChanged(params: { index: number; parameters: any }): void {
-    const draft = this.strategyService.draft();
-    if (draft.indices) {
-      const updated = [...draft.indices];
-      updated[params.index] = { ...updated[params.index], parameters: params.parameters };
-      this.strategyService.updateDraft({ indices: updated });
+  onParametersChanged(event: { index: number; parameters: any }): void {
+    const currentIndices = [...(this.strategyService.draft().indices || [])];
+    if (currentIndices[event.index]) {
+      currentIndices[event.index] = {
+        ...currentIndices[event.index],
+        parameters: event.parameters
+      };
+      this.strategyService.updateDraft({ indices: currentIndices });
     }
   }
 
@@ -392,17 +406,13 @@ export class StrategyBuilderComponent implements OnInit {
   }
 
   onDslCodeChanged(code: string): void {
-    this.strategyService.setDraftDsl(code);
+    this.strategyService.updateDraft({ 
+      dsl: { code, isValid: true, errors: [], warnings: [] }
+    });
   }
 
   onNameChanged(name: string): void {
     this.strategyService.updateDraft({ name });
-  }
-
-  canSubmit(): boolean {
-    return !!this.strategyService.draft().name && 
-           !!this.strategyService.draft().mode &&
-           (this.strategyService.draft().indices?.length ?? 0) > 0;
   }
 
   saveDraft(): void {
@@ -418,6 +428,7 @@ export class StrategyBuilderComponent implements OnInit {
   }
 
   saveAndRun(): void {
+    // FIX: Wait for save to complete before running, passing the *saved* strategy object
     this.saveStrategy(false).then(strategy => {
       if (strategy) {
         this.runSimulation(strategy);

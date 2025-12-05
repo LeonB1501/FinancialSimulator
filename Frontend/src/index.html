@@ -21,6 +21,27 @@
   <meta property="og:description" content="Backtest complex investment strategies with Monte Carlo simulations.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://quantsim.app">
+
+  <!-- Theme initialization script - runs before body to prevent flash -->
+  <script>
+    (function() {
+      const THEME_KEY = 'quantsim_theme';
+      const stored = localStorage.getItem(THEME_KEY);
+      
+      let theme = stored;
+      if (!theme) {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+      
+      // Update theme-color meta tag for mobile browsers
+      const themeColor = theme === 'dark' ? '#0F172A' : '#1E3A5F';
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
+    })();
+  </script>
 </head>
 <body>
   <qs-root></qs-root>
@@ -35,6 +56,11 @@
       justify-content: center;
       background: #F8FAFC;
       z-index: 9999;
+      transition: background-color 0.3s ease;
+    }
+    
+    .dark .app-loading {
+      background: #0F172A;
     }
     
     .app-loading-content {
@@ -64,6 +90,11 @@
       font-size: 18px;
       font-weight: 600;
       color: #1E3A5F;
+      transition: color 0.3s ease;
+    }
+    
+    .dark .app-loading-text {
+      color: #00D4AA;
     }
     
     @keyframes pulse {

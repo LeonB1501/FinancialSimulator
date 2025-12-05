@@ -120,6 +120,7 @@ export interface CustomTicker {
 export interface AccumulationScenario {
   initialLumpSum: number;
   monthlyContribution: number;
+  contributionGrowthRate: number;
   targetWealth: number;
   timelineYears: number;
 }
@@ -129,6 +130,9 @@ export interface RetirementScenario {
   monthlyWithdrawal: number;
   inflationRate: number;
   timelineYears: number;
+  // NEW: Pension fields
+  pensionStartYear: number; // Years from now until pension starts
+  monthlyPension: number;   // Base pension amount
 }
 
 export type Scenario = AccumulationScenario | RetirementScenario;
@@ -183,7 +187,7 @@ export interface Strategy {
   createdAt: Date;
   updatedAt: Date;
   lastRunAt?: Date;
-  resultsId?: string;
+  latestResultId?: string;
 }
 
 export interface StrategyDraft {
@@ -206,7 +210,7 @@ export interface StrategySummary {
   indices: string[];
   status: StrategyStatus;
   updatedAt: Date;
-  hasResults: boolean;
+  latestResultId?: string;
 }
 
 // ============================================
@@ -242,6 +246,7 @@ export const DEFAULT_GARCH_PARAMS: GARCHParameters = {
 export const DEFAULT_ACCUMULATION_SCENARIO: AccumulationScenario = {
   initialLumpSum: 50000,
   monthlyContribution: 2000,
+  contributionGrowthRate: 0.0,
   targetWealth: 1000000,
   timelineYears: 20,
 };
@@ -251,6 +256,8 @@ export const DEFAULT_RETIREMENT_SCENARIO: RetirementScenario = {
   monthlyWithdrawal: 4000,
   inflationRate: 0.025,
   timelineYears: 30,
+  pensionStartYear: 0, // Default: starts immediately
+  monthlyPension: 0    // Default: no pension
 };
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {

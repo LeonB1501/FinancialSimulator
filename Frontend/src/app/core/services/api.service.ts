@@ -31,13 +31,20 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiUrl;
 
-  get<T>(endpoint: string, params?: Record<string, string | number | boolean>): Observable<T> {
+  get<T>(endpoint: string, params?: Record<string, any>): Observable<T> {
     let httpParams = new HttpParams();
     
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          httpParams = httpParams.set(key, String(value));
+          if (Array.isArray(value)) {
+            // FIX: Handle arrays by appending multiple keys (e.g. tickers=SPY&tickers=QQQ)
+            value.forEach(item => {
+              httpParams = httpParams.append(key, String(item));
+            });
+          } else {
+            httpParams = httpParams.set(key, String(value));
+          }
         }
       });
     }

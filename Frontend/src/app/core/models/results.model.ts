@@ -16,6 +16,7 @@ export interface SimulationResults {
   
   // Core metrics
   successProbability: number;
+  ruinProbability: number; // <--- ADDED
   terminalWealthStats: DistributionStats;
   timeToTargetStats: DistributionStats | null;
   

@@ -26,7 +26,7 @@ import { CommonModule } from '@angular/common';
       ></div>
       @if (message) {
         <span 
-          class="ml-3 text-surface-600"
+          class="ml-3 text-surface-600 dark:text-surface-400"
           [class.text-lg]="size === 'lg'"
           [class.text-base]="size === 'md'"
           [class.text-sm]="size === 'sm'"

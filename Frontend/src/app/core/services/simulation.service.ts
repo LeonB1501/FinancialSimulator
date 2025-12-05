@@ -3,7 +3,15 @@ import { Observable, Subject, throwError, forkJoin, of } from 'rxjs';
 import { tap, map, catchError, finalize, switchMap } from 'rxjs/operators';
 import { ApiService } from './api.service';
 import { StrategyService } from './strategy.service';
-import { Strategy, StochasticModel, Index, SimulationMode } from '../models/strategy.model';
+import { 
+  Strategy, 
+  StochasticModel, 
+  Index, 
+  SimulationMode, 
+  Granularity, 
+  AccumulationScenario, 
+  RetirementScenario 
+} from '../models/strategy.model';
 import { 
   SimulationState,
   SimulationProgress,
@@ -15,6 +23,7 @@ import { SimulationResults, DrawdownFrequency } from '../models/results.model';
   providedIn: 'root'
 })
 export class SimulationService {
+  private readonly USE_SERVER_DEBUG_MODE = false; 
   private readonly api = inject(ApiService);
   private readonly strategyService = inject(StrategyService);
   
@@ -33,7 +42,7 @@ export class SimulationService {
   });
   private readonly _error = signal<string | null>(null);
 
-  // Progress stream for real-time updates (Restored)
+  // Progress stream for real-time updates
   private readonly progressSubject = new Subject<SimulationProgress>();
   readonly progress$ = this.progressSubject.asObservable();
 
@@ -123,12 +132,33 @@ export class SimulationService {
     historyMap: Record<string, any[]>, 
     startTime: number
   ): Observable<SimulationResults> {
+
+    // --- DEBUG MODE INTERCEPTION ---
+    if (this.USE_SERVER_DEBUG_MODE) {
+      console.warn('⚠️ RUNNING IN SERVER DEBUG MODE - WORKER BYPASSED');
+      const input = this.mapStrategyToFableInput(strategy, historyMap);
+      
+      return this.api.post<any>('/Debug/run', input).pipe(
+        map(response => {
+          if (!response.success) {
+            throw new Error(response.error);
+          }
+          console.log("F# Engine Result:", response);
+          throw new Error("Debug Run Successful. Check Backend Console for breakpoints.");
+        })
+      );
+    }
+    // -------------------------------
+
     return new Observable<SimulationResults>(observer => {
       
       const worker = new Worker(new URL('../../workers/simulation.worker', import.meta.url));
       
       // Map to Thoth-compatible JSON
       const input = this.mapStrategyToFableInput(strategy, historyMap);
+
+      // DEBUG: Log the exact payload being sent to the worker
+      console.log('🚀 Sending to Worker:', JSON.stringify(input, null, 2));
 
       worker.onmessage = ({ data }) => {
         if (data.type === 'success') {
@@ -138,12 +168,29 @@ export class SimulationService {
           this.updateProgress(100, strategy.simulationConfig.iterations, 'Processing results...');
 
           try {
+            // 1. Process Raw Data from WASM
             const results = this.processResults(strategy, data.payload, startTime);
-            this._state.set(SimulationState.Completed);
-            if (this.currentJob) this.currentJob.completedAt = new Date();
             
-            observer.next(results);
-            observer.complete();
+            // 2. Save to Backend
+            this.saveResultsToBackend(results).subscribe({
+              next: (savedRecord) => {
+                console.log('Results saved successfully with ID:', savedRecord.id);
+                this._state.set(SimulationState.Completed);
+                if (this.currentJob) this.currentJob.completedAt = new Date();
+                
+                // Return the results
+                observer.next({ ...results, id: savedRecord.id });
+                observer.complete();
+              },
+              error: (err) => {
+                console.error('Failed to save results to backend:', err);
+                this.notificationServiceError('Simulation finished, but results could not be saved.');
+                this._state.set(SimulationState.Completed);
+                observer.next(results);
+                observer.complete();
+              }
+            });
+
           } catch (err: any) {
             this.handleError(err.message, observer);
           }
@@ -168,6 +215,26 @@ export class SimulationService {
     });
   }
 
+  // --- Backend Persistence ---
+
+  private saveResultsToBackend(results: SimulationResults): Observable<{ id: string }> {
+    return this.api.post<{ id: string }>('/results', results);
+  }
+
+  loadResults(resultsId: string): Observable<SimulationResults> {
+    return this.api.get<SimulationResults>(`/results/${resultsId}`);
+  }
+
+  loadResultsForStrategy(strategyId: string): Observable<SimulationResults> {
+    return this.api.get<SimulationResults>(`/results/strategy/${strategyId}`);
+  }
+
+  exportResults(resultsId: string, format: 'pdf' | 'csv' | 'json' | 'xlsx'): Observable<Blob> {
+    return this.api.get<Blob>(`/results/${resultsId}/export`, { format });
+  }
+
+  // --- Helper Methods ---
+
   private updateProgress(percent: number, total: number, phase: string) {
     if (this.currentJob) {
       this.currentJob.progress = {
@@ -188,50 +255,64 @@ export class SimulationService {
     this.currentJob = null;
   }
 
+  private notificationServiceError(msg: string) {
+    console.error(msg); 
+  }
+
+  cancelSimulation(): void {
+    if (!this.canCancel()) return;
+    this._state.set(SimulationState.Cancelled);
+    this.currentJob = null;
+  }
+
+  reset(): void {
+    this._state.set(SimulationState.Idle);
+    this._error.set(null);
+    this.currentJob = null;
+  }
+
   // ============================================
   // Data Mapping (TS -> F# Thoth JSON)
   // ============================================
 
   private mapStrategyToFableInput(strategy: Strategy, historyMap: Record<string, any[]>): any {
-    // Map Indices to AssetDefinitions
     const assets = strategy.indices.map(idx => {
       return {
         Ticker: idx.symbol.toLowerCase(),
-        InitialPrice: (idx.parameters as any).s0 || 100.0,
+        InitialPrice: (idx.parameters as any).s0 ?? 100.0,
         Model: this.mapModelToFable(idx)
       };
     });
 
-    // Map Custom Tickers
     if (strategy.customTickers) {
       strategy.customTickers.forEach(t => {
         assets.push({
           Ticker: t.symbol.toLowerCase(),
-          InitialPrice: (t.parameters as any).s0 || 100.0,
+          InitialPrice: (t.parameters as any).s0 ?? 100.0,
           Model: this.mapModelToFable(t as unknown as Index)
         });
       });
     }
 
-    // Map Scenario (Discriminated Union -> Array)
     let scenario: any = ["NoScenario"];
     if (strategy.mode === SimulationMode.Accumulation) {
-      const s = strategy.scenario as any;
+      const s = strategy.scenario as AccumulationScenario;
       scenario = ["Accumulation", {
-        MonthlyContribution: s.monthlyContribution,
-        ContributionGrowthRate: 0.03, 
-        TargetWealth: s.targetWealth
+        MonthlyContribution: s.monthlyContribution ?? 0,
+        ContributionGrowthRate: s.contributionGrowthRate ?? 0, 
+        TargetWealth: s.targetWealth ?? 0
       }];
     } else {
-      const s = strategy.scenario as any;
+      const s = strategy.scenario as RetirementScenario;
       scenario = ["Retirement", {
-        MonthlyWithdrawal: s.monthlyWithdrawal,
-        InflationRate: s.inflationRate,
-        InitialPortfolio: s.initialPortfolio
+        MonthlyWithdrawal: s.monthlyWithdrawal ?? 0,
+        InflationRate: s.inflationRate ?? 0,
+        InitialPortfolio: s.initialPortfolio ?? 0,
+        PensionStartMonth: (s.pensionStartYear || 0) * 12,
+        MonthlyPension: s.monthlyPension || 0
       }];
     }
 
-    // Map Correlations (Map -> Array of Tuples)
     const correlations: any[] = [];
     if (strategy.correlationMatrix && strategy.correlationMatrix.matrix) {
       const indices = strategy.correlationMatrix.indices;
@@ -244,7 +325,6 @@ export class SimulationService {
       }
     }
 
-    // Map Historical Data (Map -> Array of Tuples)
     const historicalData: any[] = [];
     Object.entries(historyMap).forEach(([ticker, data]) => {
       const mappedData = data.map(d => ({ Price: d.price, Vol: d.vol }));
@@ -265,10 +345,10 @@ export class SimulationService {
         Scenario: scenario
       },
       DslCode: strategy.dsl.code || "buy 100% spy",
-      InitialCash: (strategy.scenario as any).initialLumpSum || (strategy.scenario as any).initialPortfolio || 100000,
-      BaseSeed: strategy.simulationConfig.seed || Math.floor(Math.random() * 10000),
+      InitialCash: (strategy.scenario as any).initialLumpSum ?? (strategy.scenario as any).initialPortfolio ?? 100000,
+      BaseSeed: strategy.simulationConfig.seed ?? Math.floor(Math.random() * 10000),
       Analysis: {
-        TargetWealth: (strategy.scenario as any).targetWealth || null,
+        TargetWealth: (strategy.scenario as any).targetWealth ?? null,
         TargetDays: null,
         RiskFreeRate: strategy.simulationConfig.riskFreeRate
       }
@@ -278,28 +358,31 @@ export class SimulationService {
   private mapModelToFable(index: Index): any {
     const p = index.parameters as any;
     
+    // FIX: Using PascalCase keys to match F# Record fields exactly for Thoth.Json
+    // FIX: Added null-coalescing (??) defaults for ALL fields to prevent "undefined" JSON errors.
     switch (index.model) {
       case StochasticModel.Heston:
         return ["Heston", {
-          Kappa: p.kappa,
-          Theta: p.theta,
-          Sigma: p.sigma,
-          Rho: p.rho,
-          V0: p.v0,
-          Mu: p.mu,
-          Epsilon: p.epsilon
+          Kappa: p.kappa ?? 2.0,
+          Theta: p.theta ?? 0.04,
+          Sigma: p.sigma ?? 0.3,
+          Rho: p.rho ?? -0.7,
+          V0: p.v0 ?? 0.04,
+          Mu: p.mu ?? 0.0,
+          Epsilon: p.epsilon ?? 0.0001
         }];
       
       case StochasticModel.GBM:
-        return ["GeometricBrownianMotion", p.mu, p.sigma];
+        // Arrays are positional, so no key mapping needed here
+        return ["GeometricBrownianMotion", p.mu ?? 0.08, p.sigma ?? 0.2];
         
       case StochasticModel.GARCH:
         return ["Garch", {
-          Omega: p.omega,
-          Alpha: p.alpha,
-          Beta: p.beta,
-          Mu: p.mu,
-          InitialVol: p.initialVol
+          Omega: p.omega ?? 0.000002,
+          Alpha: p.alpha ?? 0.09,
+          Beta: p.beta ?? 0.90,
+          Mu: p.mu ?? 0.08,
+          InitialVol: p.initialVol ?? 0.2
         }];
         
       case StochasticModel.BlockedBootstrap:
@@ -309,27 +392,25 @@ export class SimulationService {
         }];
 
       case StochasticModel.RegimeSwitching:
-        return ["GeometricBrownianMotion", 0.08, 0.2];
+        return ["RegimeSwitching", 0, (p.regimes || []).map((r: any) => ({
+            Name: r.name,
+            Mu: r.mu,
+            Sigma: r.sigma,
+            TransitionProbs: p.transitionMatrix ? p.transitionMatrix[0] : [0.9, 0.1]
+        }))];
         
       default:
         return ["GeometricBrownianMotion", 0.08, 0.2];
     }
   }
 
-  // ============================================
-  // Results Processing
-  // ============================================
-
   private processResults(strategy: Strategy, report: any, startTime: number): SimulationResults {
-    
-    // Map Drawdown Frequencies
     const frequencies: DrawdownFrequency[] = [];
     const thresholds = [0.1, 0.2, 0.3, 0.4, 0.5];
     
     thresholds.forEach(t => {
       const key = t.toString(); 
       let freq = 0;
-      
       if (Array.isArray(report.DrawdownFrequencies)) {
         const found = report.DrawdownFrequencies.find((pair: any) => pair[0] === t);
         freq = found ? found[1] : 0;
@@ -345,9 +426,36 @@ export class SimulationService {
       });
     });
 
+    // --- FIX: Map TimeStats correctly instead of null ---
+    const timeStats = report.TimeStats;
+    let mappedTimeStats = null;
+    if (timeStats && timeStats.Mean > 0) {
+      mappedTimeStats = {
+        min: 0,
+        max: 0,
+        mean: timeStats.Mean,
+        geometricMean: timeStats.GeometricMean,
+        median: timeStats.Median,
+        stdDev: 0,
+        skewness: 0,
+        kurtosis: 0,
+        percentiles: {
+          p1: 0,
+          p5: 0,
+          p10: this.getDecile(timeStats.Deciles, 10),
+          p25: this.getDecile(timeStats.Deciles, 25) || this.getDecile(timeStats.Deciles, 20),
+          p50: timeStats.Median,
+          p75: this.getDecile(timeStats.Deciles, 75) || this.getDecile(timeStats.Deciles, 80),
+          p90: this.getDecile(timeStats.Deciles, 90),
+          p95: 0,
+          p99: 0
+        }
+      };
+    }
+
     return {
-      id: crypto.randomUUID(),
-      strategyId: strategy.id,
+      id: crypto.randomUUID(), 
+      strategyId: strategy.id.toString(),
       strategyName: strategy.name,
       createdAt: new Date(),
       metadata: {
@@ -361,9 +469,8 @@ export class SimulationService {
         timelineYears: (strategy.scenario as any).timelineYears,
         targetWealth: (strategy.scenario as any).targetWealth,
       },
-      
       successProbability: report.ProbabilityOfSuccess,
-      
+      ruinProbability: report.ProbabilityOfRuin, // <--- MAPPED HERE
       terminalWealthStats: {
         min: 0, 
         max: 0, 
@@ -385,9 +492,7 @@ export class SimulationService {
           p99: 0
         }
       },
-      
-      timeToTargetStats: null,
-      
+      timeToTargetStats: mappedTimeStats,
       riskMetrics: {
         sharpeRatio: { median: report.AverageSharpe } as any,
         sortinoRatio: { median: report.AverageSortino } as any,
@@ -397,16 +502,13 @@ export class SimulationService {
         valueAtRisk95: 0,
         conditionalVaR95: 0
       },
-      
       drawdownAnalysis: {
         frequencies: frequencies,
         averageDrawdown: report.AverageMaxDrawdown,
         averageRecoveryTime: 0,
         longestDrawdown: 0
       },
-      
       detailedStats: { metrics: [] },
-      
       samplePaths: {
         p10: this.mapPath(report.SamplePaths[0], report.Dates),
         p25: this.mapPath(report.SamplePaths[1], report.Dates),
@@ -414,7 +516,6 @@ export class SimulationService {
         p75: this.mapPath(report.SamplePaths[3], report.Dates),
         p90: this.mapPath(report.SamplePaths[4], report.Dates),
       },
-      
       wealthDistribution: { bins: [], referenceLines: [] },
       timeToTargetDistribution: null
     };
@@ -434,29 +535,5 @@ export class SimulationService {
       values: values,
       events: []
     };
-  }
-
-  cancelSimulation(): void {
-    if (!this.canCancel()) return;
-    this._state.set(SimulationState.Cancelled);
-    this.currentJob = null;
-  }
-
-  loadResults(resultsId: string): Observable<SimulationResults> {
-    return this.api.get<SimulationResults>(`/results/${resultsId}`);
-  }
-
-  loadResultsForStrategy(strategyId: string): Observable<SimulationResults> {
-    return this.api.get<SimulationResults>(`/strategies/${strategyId}/results`);
-  }
-
-  exportResults(resultsId: string, format: 'pdf' | 'csv' | 'json' | 'xlsx'): Observable<Blob> {
-    return this.api.get<Blob>(`/results/${resultsId}/export`, { format });
-  }
-
-  reset(): void {
-    this._state.set(SimulationState.Idle);
-    this._error.set(null);
-    this.currentJob = null;
   }
 }

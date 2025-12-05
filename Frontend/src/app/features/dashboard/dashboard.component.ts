@@ -1,11 +1,12 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { HeaderComponent } from '@shared/components/header/header.component';
 import { StrategyCardComponent } from '@shared/components/strategy-card/strategy-card.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { ConfirmationDialogComponent, ConfirmationDialogData } from '@shared/components/confirmation-dialog/confirmation-dialog.component';
+import { SimulationProgressDialogComponent } from '../strategy-builder/simulation-progress-dialog/simulation-progress-dialog.component';
 import { AuthService } from '@core/services/auth.service';
 import { StrategyService } from '@core/services/strategy.service';
 import { SimulationService } from '@core/services/simulation.service';
@@ -41,23 +42,23 @@ interface QuickStats {
   template: `
     <qs-header />
     
-    <div class="pt-[72px] min-h-screen bg-surface-50">
+    <div class="pt-[72px] min-h-screen bg-surface-50 dark:bg-surface-900 transition-colors duration-300">
       <div class="flex">
         <!-- Left Sidebar -->
-        <aside class="hidden lg:block w-[280px] flex-shrink-0 border-r border-surface-200 bg-white min-h-[calc(100vh-72px)] p-6">
+        <aside class="hidden lg:block w-[280px] flex-shrink-0 border-r border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 min-h-[calc(100vh-72px)] p-6 transition-colors duration-300">
           <!-- Quick Stats -->
           <div class="space-y-4 mb-8">
             <div class="card p-4">
-              <p class="text-sm text-surface-500 mb-1">Saved Strategies</p>
-              <p class="text-2xl font-bold text-surface-900">{{ quickStats().savedStrategies }}</p>
+              <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Saved Strategies</p>
+              <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">{{ quickStats().savedStrategies }}</p>
             </div>
             <div class="card p-4">
-              <p class="text-sm text-surface-500 mb-1">Simulations Run</p>
-              <p class="text-2xl font-bold text-surface-900">{{ quickStats().simulationsRun }}</p>
+              <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Simulations Run</p>
+              <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">{{ quickStats().simulationsRun }}</p>
             </div>
             <div class="card p-4">
-              <p class="text-sm text-surface-500 mb-1">Last Activity</p>
-              <p class="text-lg font-medium text-surface-700">{{ quickStats().lastActivity }}</p>
+              <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Last Activity</p>
+              <p class="text-lg font-medium text-surface-700 dark:text-surface-300">{{ quickStats().lastActivity }}</p>
             </div>
           </div>
 
@@ -88,10 +89,10 @@ interface QuickStats {
         <main class="flex-1 p-6 lg:p-8">
           <!-- Welcome Section -->
           <div class="mb-8">
-            <h1 class="text-2xl lg:text-3xl font-bold text-surface-900 mb-2">
+            <h1 class="text-2xl lg:text-3xl font-bold text-surface-900 dark:text-surface-100 mb-2">
               Welcome back, {{ (authService.user()?.name?.split(' ')?.[0]) || 'there' }}!
             </h1>
-            <p class="text-surface-600">
+            <p class="text-surface-600 dark:text-surface-400">
               Here's an overview of your strategies and recent activity.
             </p>
           </div>
@@ -112,8 +113,8 @@ interface QuickStats {
           <!-- Recent Strategies -->
           <section class="mb-10">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-xl font-semibold text-surface-900">Recent Strategies</h2>
-              <a routerLink="/strategies" class="text-accent-600 hover:text-accent-700 text-sm font-medium">
+              <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-100">Recent Strategies</h2>
+              <a routerLink="/strategies" class="text-accent-600 dark:text-accent-400 hover:text-accent-700 dark:hover:text-accent-300 text-sm font-medium">
                 View all →
               </a>
             </div>
@@ -122,25 +123,25 @@ interface QuickStats {
               <div class="grid md:grid-cols-2 gap-6">
                 @for (i of [1, 2, 3, 4]; track i) {
                   <div class="card p-6 animate-pulse">
-                    <div class="h-6 bg-surface-200 rounded w-3/4 mb-4"></div>
-                    <div class="h-4 bg-surface-100 rounded w-1/2 mb-4"></div>
+                    <div class="h-6 bg-surface-200 dark:bg-surface-700 rounded w-3/4 mb-4"></div>
+                    <div class="h-4 bg-surface-100 dark:bg-surface-600 rounded w-1/2 mb-4"></div>
                     <div class="flex space-x-2 mb-4">
-                      <div class="h-6 bg-surface-100 rounded-full w-16"></div>
-                      <div class="h-6 bg-surface-100 rounded-full w-16"></div>
+                      <div class="h-6 bg-surface-100 dark:bg-surface-600 rounded-full w-16"></div>
+                      <div class="h-6 bg-surface-100 dark:bg-surface-600 rounded-full w-16"></div>
                     </div>
-                    <div class="h-4 bg-surface-100 rounded w-1/3"></div>
+                    <div class="h-4 bg-surface-100 dark:bg-surface-600 rounded w-1/3"></div>
                   </div>
                 }
               </div>
             } @else if (recentStrategies().length === 0) {
               <div class="card p-12 text-center">
-                <div class="w-16 h-16 bg-surface-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div class="w-16 h-16 bg-surface-100 dark:bg-surface-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg class="w-8 h-8 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                   </svg>
                 </div>
-                <h3 class="text-lg font-medium text-surface-900 mb-2">No strategies yet</h3>
-                <p class="text-surface-600 mb-6">Create your first strategy to start backtesting.</p>
+                <h3 class="text-lg font-medium text-surface-900 dark:text-surface-100 mb-2">No strategies yet</h3>
+                <p class="text-surface-600 dark:text-surface-400 mb-6">Create your first strategy to start backtesting.</p>
                 <a routerLink="/build" class="btn-primary btn-md inline-flex">
                   <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
@@ -166,11 +167,11 @@ interface QuickStats {
           <div class="grid lg:grid-cols-3 gap-8">
             <!-- Activity Feed -->
             <section class="lg:col-span-2">
-              <h2 class="text-xl font-semibold text-surface-900 mb-6">Recent Activity</h2>
+              <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-100 mb-6">Recent Activity</h2>
               
               @if (activityItems().length === 0) {
                 <div class="card p-8 text-center">
-                  <p class="text-surface-500">No recent activity to show.</p>
+                  <p class="text-surface-500 dark:text-surface-400">No recent activity to show.</p>
                 </div>
               } @else {
                 <div class="space-y-4">
@@ -195,8 +196,8 @@ interface QuickStats {
                             </ng-container>
                           </div>
                           <div>
-                            <p class="font-medium text-surface-900">{{ item.strategyName }}</p>
-                            <p class="text-sm text-surface-500">{{ getActivityLabel(item.type) }}</p>
+                            <p class="font-medium text-surface-900 dark:text-surface-100">{{ item.strategyName }}</p>
+                            <p class="text-sm text-surface-500 dark:text-surface-400">{{ getActivityLabel(item.type) }}</p>
                           </div>
                         </div>
                         <span class="text-sm text-surface-400">
@@ -211,30 +212,30 @@ interface QuickStats {
 
             <!-- Account Summary -->
             <section>
-              <h2 class="text-xl font-semibold text-surface-900 mb-6">Account Summary</h2>
+              <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-100 mb-6">Account Summary</h2>
               <div class="card p-6">
-                <div class="flex items-center space-x-4 mb-6 pb-6 border-b border-surface-100">
+                <div class="flex items-center space-x-4 mb-6 pb-6 border-b border-surface-100 dark:border-surface-700">
                   <div class="w-14 h-14 bg-primary-500 rounded-full flex items-center justify-center text-white text-xl font-bold">
                     {{ authService.userInitials() }}
                   </div>
                   <div>
-                    <p class="font-semibold text-surface-900">{{ authService.user()?.name }}</p>
-                    <p class="text-sm text-surface-500">{{ authService.user()?.email }}</p>
+                    <p class="font-semibold text-surface-900 dark:text-surface-100">{{ authService.user()?.name }}</p>
+                    <p class="text-sm text-surface-500 dark:text-surface-400">{{ authService.user()?.email }}</p>
                   </div>
                 </div>
 
                 <div class="space-y-4">
                   <div class="flex justify-between">
-                    <span class="text-surface-600">Plan</span>
-                    <span class="font-medium text-surface-900">Free Tier</span>
+                    <span class="text-surface-600 dark:text-surface-400">Plan</span>
+                    <span class="font-medium text-surface-900 dark:text-surface-100">Free Tier</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-surface-600">Iterations/Sim</span>
-                    <span class="font-medium text-surface-900">10,000</span>
+                    <span class="text-surface-600 dark:text-surface-400">Iterations/Sim</span>
+                    <span class="font-medium text-surface-900 dark:text-surface-100">10,000</span>
                   </div>
                   <div class="flex justify-between">
-                    <span class="text-surface-600">Member Since</span>
-                    <span class="font-medium text-surface-900">
+                    <span class="text-surface-600 dark:text-surface-400">Member Since</span>
+                    <span class="font-medium text-surface-900 dark:text-surface-100">
                       {{ authService.user()?.createdAt | date:'MMM yyyy' }}
                     </span>
                   </div>
@@ -260,6 +261,7 @@ export class DashboardComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
   private readonly notificationService = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
 
   readonly recentStrategies = signal<StrategySummary[]>([]);
   readonly activityItems = signal<ActivityItem[]>([]);
@@ -280,27 +282,40 @@ export class DashboardComponent implements OnInit {
         this.recentStrategies.set(response.data);
         
         // Update quick stats
+        // FIX: Check latestResultId instead of hasResults
+        const completedCount = response.data.filter(s => !!s.latestResultId).length;
+        
         this.quickStats.update(stats => ({
           ...stats,
           savedStrategies: response.total,
+          simulationsRun: completedCount, 
+          lastActivity: response.data.length > 0 ? this.timeSince(response.data[0].updatedAt) : 'N/A'
         }));
 
         // Generate activity items from strategies
         this.generateActivityItems(response.data);
       });
+  }
 
-    // In a real app, you'd load these from a separate endpoint
-    this.quickStats.update(stats => ({
-      ...stats,
-      simulationsRun: 847,
-      lastActivity: '2 hours ago',
-    }));
+  private timeSince(date: Date): string {
+    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+    return "Just now";
   }
 
   private generateActivityItems(strategies: StrategySummary[]): void {
     const items: ActivityItem[] = strategies.map(s => ({
       id: s.id,
-      type: s.hasResults ? 'completed' : 'updated',
+      type: s.latestResultId ? 'completed' : 'updated', // FIX: Check latestResultId
       strategyName: s.name,
       timestamp: s.updatedAt,
     }));
@@ -308,16 +323,31 @@ export class DashboardComponent implements OnInit {
   }
 
   onRunStrategy(strategy: StrategySummary): void {
-    this.strategyService.loadStrategy(strategy.id).subscribe(fullStrategy => {
-      this.simulationService.runSimulation(fullStrategy).subscribe({
-        next: () => {
-          this.notificationService.success('Simulation completed!');
+    // 1. Fetch full strategy details first
+    this.strategyService.loadStrategy(strategy.id).subscribe({
+      next: (fullStrategy) => {
+        // 2. Open Progress Dialog
+        const dialogRef = this.dialog.open(SimulationProgressDialogComponent, {
+          disableClose: true,
+          width: '500px',
+          data: { strategy: fullStrategy },
+        });
+
+        // 3. Handle Completion
+        dialogRef.afterClosed().subscribe(result => {
+          if (result?.success) {
+            this.notificationService.success('Simulation completed successfully!');
+            this.router.navigate(['/results', strategy.id]);
+          } else if (result?.cancelled) {
+            this.notificationService.info('Simulation cancelled.');
+          }
+          // Refresh dashboard data regardless
           this.loadDashboardData();
-        },
-        error: (err) => {
-          this.notificationService.error(err.message || 'Simulation failed');
-        },
-      });
+        });
+      },
+      error: (err) => {
+        this.notificationService.error('Failed to load strategy for simulation: ' + err.message);
+      }
     });
   }
 
@@ -354,10 +384,10 @@ export class DashboardComponent implements OnInit {
   getActivityIconClass(type: ActivityItem['type']): string {
     const base = 'w-8 h-8 rounded-full flex items-center justify-center';
     const colors: Record<ActivityItem['type'], string> = {
-      created: 'bg-blue-100 text-blue-600',
-      updated: 'bg-amber-100 text-amber-600',
-      completed: 'bg-green-100 text-green-600',
-      failed: 'bg-red-100 text-red-600',
+      created: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+      updated: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+      completed: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+      failed: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
     };
     return `${base} ${colors[type]}`;
   }

@@ -114,16 +114,18 @@ export function AccumulationParams_$reflection() {
 }
 
 export class RetirementParams extends Record {
-    constructor(MonthlyWithdrawal, InflationRate, InitialPortfolio) {
+    constructor(MonthlyWithdrawal, InflationRate, InitialPortfolio, PensionStartMonth, MonthlyPension) {
         super();
         this.MonthlyWithdrawal = MonthlyWithdrawal;
         this.InflationRate = InflationRate;
         this.InitialPortfolio = InitialPortfolio;
+        this.PensionStartMonth = (PensionStartMonth | 0);
+        this.MonthlyPension = MonthlyPension;
     }
 }
 
 export function RetirementParams_$reflection() {
-    return record_type("EngineTypes.RetirementParams", [], RetirementParams, () => [["MonthlyWithdrawal", float64_type], ["InflationRate", float64_type], ["InitialPortfolio", float64_type]]);
+    return record_type("EngineTypes.RetirementParams", [], RetirementParams, () => [["MonthlyWithdrawal", float64_type], ["InflationRate", float64_type], ["InitialPortfolio", float64_type], ["PensionStartMonth", int32_type], ["MonthlyPension", float64_type]]);
 }
 
 export class FinancialScenario extends Union {

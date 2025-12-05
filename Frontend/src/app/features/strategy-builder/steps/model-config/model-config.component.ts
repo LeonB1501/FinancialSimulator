@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, signal, computed, input, inject } from '@angular/core';
+import { Component, Output, EventEmitter, signal, computed, input, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -32,33 +32,33 @@ import {
   template: `
     <div class="max-w-5xl mx-auto">
       <div class="mb-8">
-        <h1 class="text-2xl lg:text-3xl font-bold text-surface-900 mb-2">
+        <h1 class="text-2xl lg:text-3xl font-bold text-surface-900 dark:text-surface-100 mb-2">
           Configure Models & Indices
         </h1>
-        <p class="text-surface-600">
+        <p class="text-surface-600 dark:text-surface-400">
           Select indices to include and configure stochastic model parameters.
         </p>
       </div>
 
       <!-- Model Selection -->
       <section class="mb-10">
-        <h2 class="text-lg font-semibold text-surface-900 mb-4">Stochastic Model</h2>
+        <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Stochastic Model</h2>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
           @for (model of models; track model.id) {
             <button
               (click)="selectModel(model.id)"
               [disabled]="isModelDisabled(model.id)"
               [class]="getModelCardClass(model.id)"
-              class="card p-4 text-center transition-all duration-200 relative group"
+              class="bg-white dark:bg-surface-800 rounded-2xl border p-4 text-center transition-all duration-200 relative group"
             >
               <div class="text-2xl mb-2" [class.opacity-50]="isModelDisabled(model.id)">{{ model.icon }}</div>
-              <p class="font-medium text-sm" [class.text-surface-400]="isModelDisabled(model.id)" [class.text-surface-900]="!isModelDisabled(model.id)">
+              <p class="font-medium text-sm" [class]="isModelDisabled(model.id) ? 'text-surface-400 dark:text-surface-500' : 'text-surface-900 dark:text-surface-100'">
                 {{ model.name }}
               </p>
               
               @if (isModelDisabled(model.id)) {
-                <div class="absolute inset-0 bg-white/50 cursor-not-allowed rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span class="text-xs bg-surface-900 text-white px-2 py-1 rounded shadow-lg">
+                <div class="absolute inset-0 bg-white/50 dark:bg-surface-900/50 cursor-not-allowed rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span class="text-xs bg-surface-900 dark:bg-surface-100 text-white dark:text-surface-900 px-2 py-1 rounded shadow-lg">
                     Requires History
                   </span>
                 </div>
@@ -67,7 +67,7 @@ import {
           }
         </div>
         @if (hasCustomIndexSelected() && selectedModelType() === StochasticModel.BlockedBootstrap) {
-          <p class="text-xs text-amber-600 mt-2 flex items-center">
+          <p class="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             Bootstrap model is unavailable for custom tickers (no historical data).
           </p>
@@ -77,8 +77,8 @@ import {
       <!-- Index Selection -->
       <section class="mb-10">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold text-surface-900">Select Indices</h2>
-          <button (click)="openCustomTickerDialog()" class="text-sm text-accent-600 font-medium hover:text-accent-700 flex items-center">
+          <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100">Select Indices</h2>
+          <button (click)="openCustomTickerDialog()" class="text-sm text-accent-600 dark:text-accent-400 font-medium hover:text-accent-700 dark:hover:text-accent-300 flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
             </svg>
@@ -86,7 +86,7 @@ import {
           </button>
         </div>
         
-        <div class="card p-6">
+        <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none">
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             @for (index of allAvailableIndices(); track index.symbol) {
               <label
@@ -100,11 +100,11 @@ import {
                   class="sr-only"
                 >
                 <div class="flex items-center space-x-3 w-full">
-                  <span class="font-mono text-lg font-semibold" [class]="isIndexSelected(index.symbol) ? 'text-accent-600' : 'text-surface-600'">
+                  <span class="font-mono text-lg font-semibold" [class]="isIndexSelected(index.symbol) ? 'text-accent-600 dark:text-accent-400' : 'text-surface-600 dark:text-surface-300'">
                     {{ index.symbol }}
                   </span>
                   @if (isCustomTicker(index.symbol)) {
-                    <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Custom</span>
+                    <span class="text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Custom</span>
                   }
                   @if (isIndexSelected(index.symbol)) {
                     <svg class="w-5 h-5 text-accent-500 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,90 +121,90 @@ import {
       <!-- Parameter Configuration -->
       @if (selectedIndices().length > 0) {
         <section class="mb-10">
-          <h2 class="text-lg font-semibold text-surface-900 mb-4">Model Parameters</h2>
-          <div class="card overflow-hidden bg-white border border-surface-200 rounded-xl">
+          <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Model Parameters</h2>
+          <div class="bg-white dark:bg-surface-800 overflow-hidden border border-surface-200 dark:border-surface-700 rounded-xl">
             <mat-tab-group animationDuration="0ms">
               @for (index of selectedIndices(); track index.symbol; let i = $index) {
                 <mat-tab [label]="index.symbol">
                   <div class="p-6">
                     <div class="flex items-center justify-between mb-6">
                       <div>
-                        <h3 class="font-medium text-surface-900 text-lg">{{ index.name }}</h3>
-                        <p class="text-sm text-surface-500">{{ getModelName(selectedModelType()) }} parameters</p>
+                        <h3 class="font-medium text-surface-900 dark:text-surface-100 text-lg">{{ index.name }}</h3>
+                        <p class="text-sm text-surface-500 dark:text-surface-400">{{ getModelName(selectedModelType()) }} parameters</p>
                       </div>
                     </div>
                     
                     @if (selectedModelType() === StochasticModel.Heston) {
                       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div>
-                          <label class="label">Mean Reversion (κ)</label>
-                          <input type="number" step="0.1" class="input" [value]="getHestonParam(index, 'kappa')" (input)="updateHestonParam(i, 'kappa', $event)">
+                          <label class="label dark:text-surface-300">Mean Reversion (κ)</label>
+                          <input type="number" step="0.1" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 'kappa')" (input)="updateHestonParam(i, 'kappa', $event)">
                         </div>
                         <div>
-                          <label class="label">Long-term Var (θ)</label>
-                          <input type="number" step="0.01" class="input" [value]="getHestonParam(index, 'theta')" (input)="updateHestonParam(i, 'theta', $event)">
+                          <label class="label dark:text-surface-300">Long-term Var (θ)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 'theta')" (input)="updateHestonParam(i, 'theta', $event)">
                         </div>
                         <div>
-                          <label class="label">Vol of Vol (σ)</label>
-                          <input type="number" step="0.1" class="input" [value]="getHestonParam(index, 'sigma')" (input)="updateHestonParam(i, 'sigma', $event)">
+                          <label class="label dark:text-surface-300">Vol of Vol (σ)</label>
+                          <input type="number" step="0.1" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 'sigma')" (input)="updateHestonParam(i, 'sigma', $event)">
                         </div>
                         <div>
-                          <label class="label">Correlation (ρ)</label>
-                          <input type="number" step="0.1" min="-1" max="1" class="input" [value]="getHestonParam(index, 'rho')" (input)="updateHestonParam(i, 'rho', $event)">
+                          <label class="label dark:text-surface-300">Correlation (ρ)</label>
+                          <input type="number" step="0.1" min="-1" max="1" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 'rho')" (input)="updateHestonParam(i, 'rho', $event)">
                         </div>
                         <div>
-                          <label class="label">Initial Var (v₀)</label>
-                          <input type="number" step="0.01" class="input" [value]="getHestonParam(index, 'v0')" (input)="updateHestonParam(i, 'v0', $event)">
+                          <label class="label dark:text-surface-300">Initial Var (v₀)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 'v0')" (input)="updateHestonParam(i, 'v0', $event)">
                         </div>
                         <div>
-                          <label class="label">Initial Price (S₀)</label>
-                          <input type="number" step="1" class="input" [value]="getHestonParam(index, 's0')" (input)="updateHestonParam(i, 's0', $event)">
+                          <label class="label dark:text-surface-300">Initial Price (S₀)</label>
+                          <input type="number" step="1" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 's0')" (input)="updateHestonParam(i, 's0', $event)">
                         </div>
                         <div>
-                          <label class="label">Drift (μ)</label>
-                          <input type="number" step="0.01" class="input" [value]="getHestonParam(index, 'mu')" (input)="updateHestonParam(i, 'mu', $event)">
+                          <label class="label dark:text-surface-300">Drift (μ)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getHestonParam(index, 'mu')" (input)="updateHestonParam(i, 'mu', $event)">
                         </div>
                       </div>
                     } @else if (selectedModelType() === StochasticModel.GBM) {
                       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div>
-                          <label class="label">Drift (μ)</label>
-                          <input type="number" step="0.01" class="input" [value]="getGBMParam(index, 'mu')" (input)="updateGBMParam(i, 'mu', $event)">
+                          <label class="label dark:text-surface-300">Drift (μ)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGBMParam(index, 'mu')" (input)="updateGBMParam(i, 'mu', $event)">
                         </div>
                         <div>
-                          <label class="label">Volatility (σ)</label>
-                          <input type="number" step="0.01" class="input" [value]="getGBMParam(index, 'sigma')" (input)="updateGBMParam(i, 'sigma', $event)">
+                          <label class="label dark:text-surface-300">Volatility (σ)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGBMParam(index, 'sigma')" (input)="updateGBMParam(i, 'sigma', $event)">
                         </div>
                         <div>
-                          <label class="label">Initial Price (S₀)</label>
-                          <input type="number" step="1" class="input" [value]="getGBMParam(index, 's0')" (input)="updateGBMParam(i, 's0', $event)">
+                          <label class="label dark:text-surface-300">Initial Price (S₀)</label>
+                          <input type="number" step="1" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGBMParam(index, 's0')" (input)="updateGBMParam(i, 's0', $event)">
                         </div>
                       </div>
                     } @else if (selectedModelType() === StochasticModel.GARCH) {
                       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div>
-                          <label class="label">Constant (ω)</label>
-                          <input type="number" step="0.000001" class="input" [value]="getGARCHParam(index, 'omega')" (input)="updateGARCHParam(i, 'omega', $event)">
+                          <label class="label dark:text-surface-300">Constant (ω)</label>
+                          <input type="number" step="0.000001" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGARCHParam(index, 'omega')" (input)="updateGARCHParam(i, 'omega', $event)">
                         </div>
                         <div>
-                          <label class="label">ARCH (α)</label>
-                          <input type="number" step="0.01" class="input" [value]="getGARCHParam(index, 'alpha')" (input)="updateGARCHParam(i, 'alpha', $event)">
+                          <label class="label dark:text-surface-300">ARCH (α)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGARCHParam(index, 'alpha')" (input)="updateGARCHParam(i, 'alpha', $event)">
                         </div>
                         <div>
-                          <label class="label">GARCH (β)</label>
-                          <input type="number" step="0.01" class="input" [value]="getGARCHParam(index, 'beta')" (input)="updateGARCHParam(i, 'beta', $event)">
+                          <label class="label dark:text-surface-300">GARCH (β)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGARCHParam(index, 'beta')" (input)="updateGARCHParam(i, 'beta', $event)">
                         </div>
                         <div>
-                          <label class="label">Drift (μ)</label>
-                          <input type="number" step="0.01" class="input" [value]="getGARCHParam(index, 'mu')" (input)="updateGARCHParam(i, 'mu', $event)">
+                          <label class="label dark:text-surface-300">Drift (μ)</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGARCHParam(index, 'mu')" (input)="updateGARCHParam(i, 'mu', $event)">
                         </div>
                         <div>
-                          <label class="label">Initial Vol</label>
-                          <input type="number" step="0.01" class="input" [value]="getGARCHParam(index, 'initialVol')" (input)="updateGARCHParam(i, 'initialVol', $event)">
+                          <label class="label dark:text-surface-300">Initial Vol</label>
+                          <input type="number" step="0.01" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGARCHParam(index, 'initialVol')" (input)="updateGARCHParam(i, 'initialVol', $event)">
                         </div>
                         <div>
-                          <label class="label">Initial Price (S₀)</label>
-                          <input type="number" step="1" class="input" [value]="getGARCHParam(index, 's0')" (input)="updateGARCHParam(i, 's0', $event)">
+                          <label class="label dark:text-surface-300">Initial Price (S₀)</label>
+                          <input type="number" step="1" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getGARCHParam(index, 's0')" (input)="updateGARCHParam(i, 's0', $event)">
                         </div>
                       </div>
                     } @else if (selectedModelType() === StochasticModel.RegimeSwitching) {
@@ -212,16 +212,16 @@ import {
                             <!-- Regimes -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 @for (regime of getRegimes(index); track $index) {
-                                    <div class="card p-4 bg-surface-50 border border-surface-200">
-                                        <h4 class="font-semibold text-surface-900 mb-3">{{ regime.name || 'Regime ' + $index }}</h4>
+                                    <div class="p-4 bg-surface-50 dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded-xl">
+                                        <h4 class="font-semibold text-surface-900 dark:text-surface-100 mb-3">{{ regime.name || 'Regime ' + $index }}</h4>
                                         <div class="space-y-3">
                                             <div>
-                                                <label class="text-xs font-medium text-surface-600 block mb-1">Drift (μ)</label>
-                                                <input type="number" step="0.01" class="w-full text-sm p-2 rounded border border-surface-300" [value]="regime.mu" (input)="updateRegimeParam(i, $index, 'mu', $event)">
+                                                <label class="text-xs font-medium text-surface-600 dark:text-surface-400 block mb-1">Drift (μ)</label>
+                                                <input type="number" step="0.01" class="w-full text-sm p-2 rounded border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100" [value]="regime.mu" (input)="updateRegimeParam(i, $index, 'mu', $event)">
                                             </div>
                                             <div>
-                                                <label class="text-xs font-medium text-surface-600 block mb-1">Volatility (σ)</label>
-                                                <input type="number" step="0.01" class="w-full text-sm p-2 rounded border border-surface-300" [value]="regime.sigma" (input)="updateRegimeParam(i, $index, 'sigma', $event)">
+                                                <label class="text-xs font-medium text-surface-600 dark:text-surface-400 block mb-1">Volatility (σ)</label>
+                                                <input type="number" step="0.01" class="w-full text-sm p-2 rounded border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100" [value]="regime.sigma" (input)="updateRegimeParam(i, $index, 'sigma', $event)">
                                             </div>
                                         </div>
                                     </div>
@@ -230,27 +230,32 @@ import {
                             
                             <!-- Transition Matrix -->
                             <div>
-                                <h4 class="font-medium text-surface-900 mb-2">Transition Matrix</h4>
+                                <h4 class="font-medium text-surface-900 dark:text-surface-100 mb-2">Transition Matrix</h4>
                                 <div class="overflow-x-auto">
                                     <table class="w-full text-sm">
                                         <thead>
                                             <tr>
-                                                <th class="text-left p-2 text-surface-500">From / To</th>
-                                                @for (r of getRegimes(index); track $index) {
-                                                    <th class="p-2 text-surface-700">{{ r.name }}</th>
+                                                <th class="p-2 text-surface-600 dark:text-surface-400"></th>
+                                                @for (regime of getRegimes(index); track $index) {
+                                                    <th class="p-2 text-surface-600 dark:text-surface-400 font-medium">To {{ regime.name || 'R' + $index }}</th>
                                                 }
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @for (rIdx of getRegimeIndices(index); track rIdx) {
+                                            @for (row of getRegimeIndices(index); track row) {
                                                 <tr>
-                                                    <td class="p-2 font-medium text-surface-700">{{ getRegimes(index)[rIdx].name }}</td>
-                                                    @for (cIdx of getRegimeIndices(index); track cIdx) {
+                                                    <td class="p-2 font-medium text-surface-600 dark:text-surface-400">From {{ getRegimes(index)[row].name || 'R' + row }}</td>
+                                                    @for (col of getRegimeIndices(index); track col) {
                                                         <td class="p-1">
-                                                            <input type="number" step="0.01" min="0" max="1" 
-                                                                class="w-full p-1.5 text-center border border-surface-200 rounded focus:ring-1 focus:ring-accent-500 outline-none"
-                                                                [value]="getTransitionMatrix(index)[rIdx][cIdx]"
-                                                                (input)="updateTransitionParam(i, rIdx, cIdx, $event)">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                max="1"
+                                                                [value]="getTransitionMatrix(index)[row][col]"
+                                                                (input)="updateTransitionParam(i, row, col, $event)"
+                                                                class="w-20 h-10 text-center rounded-lg border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-700 text-sm font-mono text-surface-900 dark:text-surface-100 focus:ring-2 focus:ring-accent-500 focus:border-accent-500 outline-none"
+                                                            >
                                                         </td>
                                                     }
                                                 </tr>
@@ -261,25 +266,13 @@ import {
                             </div>
                         </div>
                     } @else if (selectedModelType() === StochasticModel.BlockedBootstrap) {
-                       <div class="space-y-4">
-                         <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 flex items-start">
-                           <svg class="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                           <div>
-                             <p class="font-medium">Using historical data for {{ index.symbol }}</p>
-                             <p class="text-sm mt-1">This model resamples actual historical returns in blocks to preserve volatility clustering.</p>
-                           </div>
-                         </div>
-                         
-                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="label">Block Size (Days)</label>
-                                <input type="number" step="1" min="1" class="input" 
-                                    [value]="getBootstrapParam(index, 'blockSize')" 
-                                    (input)="updateBootstrapParam(i, 'blockSize', $event)">
-                                <p class="text-xs text-surface-500 mt-1">Optimal size estimated from autocorrelation</p>
+                                <label class="label dark:text-surface-300">Block Size</label>
+                                <input type="number" step="1" min="5" max="100" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" [value]="getBootstrapParam(index, 'blockSize')" (input)="updateBootstrapParam(i, 'blockSize', $event)">
+                                <p class="text-xs text-surface-500 dark:text-surface-400 mt-1">Number of consecutive days in each bootstrap block</p>
                             </div>
-                         </div>
-                       </div>
+                        </div>
                     }
                   </div>
                 </mat-tab>
@@ -292,21 +285,21 @@ import {
       <!-- Correlation Matrix -->
       @if (selectedIndices().length > 1) {
         <section>
-          <h2 class="text-lg font-semibold text-surface-900 mb-4">Correlation Matrix</h2>
-          <div class="card p-6 overflow-x-auto">
+          <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Correlation Matrix</h2>
+          <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 overflow-x-auto shadow-soft dark:shadow-none">
             <table class="w-full">
               <thead>
                 <tr>
                   <th class="p-2"></th>
                   @for (idx of selectedIndices(); track idx.symbol) {
-                    <th class="p-2 font-mono text-sm font-medium text-surface-600">{{ idx.symbol }}</th>
+                    <th class="p-2 font-mono text-sm font-medium text-surface-600 dark:text-surface-400">{{ idx.symbol }}</th>
                   }
                 </tr>
               </thead>
               <tbody>
                 @for (rowIdx of selectedIndices(); track rowIdx.symbol; let i = $index) {
                   <tr>
-                    <td class="p-2 font-mono text-sm font-medium text-surface-600">{{ rowIdx.symbol }}</td>
+                    <td class="p-2 font-mono text-sm font-medium text-surface-600 dark:text-surface-400">{{ rowIdx.symbol }}</td>
                     @for (colIdx of selectedIndices(); track colIdx.symbol; let j = $index) {
                       <td class="p-1">
                         <input
@@ -332,16 +325,16 @@ import {
       
       <!-- Custom Ticker Dialog -->
       <dialog #customTickerDialog class="p-0 rounded-2xl shadow-xl backdrop:bg-black/50">
-        <div class="w-[500px] bg-white p-6">
-            <h3 class="text-lg font-bold text-surface-900 mb-4">Add Custom Ticker</h3>
+        <div class="w-[500px] bg-white dark:bg-surface-800 p-6">
+            <h3 class="text-lg font-bold text-surface-900 dark:text-surface-100 mb-4">Add Custom Ticker</h3>
             <div class="space-y-4">
                 <div>
-                    <label class="label">Symbol</label>
-                    <input #tickerSymbol type="text" class="input uppercase font-mono" placeholder="e.g. MYASSET" maxlength="10">
+                    <label class="label dark:text-surface-300">Symbol</label>
+                    <input #tickerSymbol type="text" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100 uppercase font-mono" placeholder="e.g. MYASSET" maxlength="10">
                 </div>
                 <div>
-                    <label class="label">Name</label>
-                    <input #tickerName type="text" class="input" placeholder="e.g. Synthetic Asset">
+                    <label class="label dark:text-surface-300">Name</label>
+                    <input #tickerName type="text" class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100" placeholder="e.g. Synthetic Asset">
                 </div>
                 <div class="flex justify-end space-x-3 mt-6">
                     <button (click)="customTickerDialog.close()" class="btn-secondary btn-md">Cancel</button>
@@ -353,7 +346,7 @@ import {
     </div>
   `
 })
-export class ModelConfigComponent {
+export class ModelConfigComponent implements OnInit {
   private strategyService = inject(StrategyService);
 
   draft = input.required<StrategyDraft>();
@@ -392,6 +385,14 @@ export class ModelConfigComponent {
     return selected.some(idx => customTickers.some(ct => ct.symbol === idx.symbol));
   });
 
+  ngOnInit() {
+    // FIX: Initialize the selected model from the draft to prevent resetting to default
+    const existingIndices = this.draft().indices;
+    if (existingIndices && existingIndices.length > 0) {
+      this.selectedModelType.set(existingIndices[0].model);
+    }
+  }
+
   isCustomTicker(symbol: string): boolean {
     return (this.draft().customTickers || []).some(t => t.symbol === symbol);
   }
@@ -401,6 +402,33 @@ export class ModelConfigComponent {
       return true;
     }
     return false;
+  }
+
+  getModelCardClass(modelId: StochasticModel): string {
+    const isSelected = this.selectedModelType() === modelId;
+    if (isSelected) {
+      return 'ring-2 ring-accent-500 border-accent-200 dark:border-accent-700';
+    }
+    return 'border-surface-200 dark:border-surface-700 hover:border-surface-300 dark:hover:border-surface-600 hover:shadow-medium dark:hover:shadow-none';
+  }
+
+  getIndexCheckboxClass(symbol: string): string {
+    const isSelected = this.isIndexSelected(symbol);
+    if (isSelected) {
+      return 'bg-accent-50 dark:bg-accent-900/30 border-accent-200 dark:border-accent-700';
+    }
+    return 'bg-white dark:bg-surface-700 border-surface-200 dark:border-surface-600 hover:border-surface-300 dark:hover:border-surface-500';
+  }
+
+  getCorrelationInputClass(row: number, col: number): string {
+    if (row === col) {
+      return 'bg-surface-100 dark:bg-surface-700 border-surface-200 dark:border-surface-600 text-surface-400 dark:text-surface-500 cursor-not-allowed';
+    }
+    return 'bg-white dark:bg-surface-700 border-surface-200 dark:border-surface-600 text-surface-900 dark:text-surface-100';
+  }
+
+  getModelName(model: StochasticModel): string {
+    return this.models.find(m => m.id === model)?.name || 'Unknown';
   }
 
   selectModel(model: StochasticModel): void {
@@ -452,19 +480,16 @@ export class ModelConfigComponent {
       this.fetchParameters(newIndex.symbol, this.selectedModelType(), newIndices.length - 1);
     }
 
-    // --- NEW LOGIC START ---
     // Update Correlations if we have enough assets
     if (newIndices.length > 1) {
       const symbols = newIndices.map(i => i.symbol);
       
       this.strategyService.getCorrelations(symbols).subscribe(updates => {
         if (updates.length > 0) {
-          // We have real data! Apply it.
           updates.forEach(u => this.correlationChanged.emit(u));
         }
       });
     }
-    // --- NEW LOGIC END ---
   }
 
   private fetchParameters(symbol: string, model: StochasticModel, listIndex: number) {
@@ -574,7 +599,6 @@ export class ModelConfigComponent {
     return params?.transitionMatrix || this.getDefaultParams(StochasticModel.RegimeSwitching).transitionMatrix;
   }
 
-  // FIX: Helper to generate indices array for safe iteration
   getRegimeIndices(index: Index): number[] {
     const n = this.getRegimes(index).length;
     return Array.from({ length: n }, (_, i) => i);
@@ -633,44 +657,16 @@ export class ModelConfigComponent {
         this.selectModel(StochasticModel.Heston);
       }
 
-      const newTicker: CustomTicker = {
+      const ticker: CustomTicker = {
           id: crypto.randomUUID(),
           symbol: symbol.toUpperCase(),
-          name: name,
+          name,
           model: this.selectedModelType(),
           parameters: this.getDefaultParams(this.selectedModelType()),
           createdAt: new Date()
       };
-      const currentTickers = this.draft().customTickers || [];
-      this.tickersChanged.emit([...currentTickers, newTicker]);
-  }
-
-  getModelCardClass(model: StochasticModel): string {
-    if (this.isModelDisabled(model)) {
-      return 'opacity-50 cursor-not-allowed bg-surface-100 border-surface-200';
-    }
-    if (this.selectedModelType() === model) {
-      return 'ring-2 ring-accent-500 border-accent-200 bg-accent-50';
-    }
-    return 'hover:border-surface-300 hover:shadow-soft border-surface-200';
-  }
-
-  getIndexCheckboxClass(symbol: string): string {
-    if (this.isIndexSelected(symbol)) {
-      return 'border-accent-300 bg-accent-50';
-    }
-    return 'border-surface-200 hover:border-surface-300';
-  }
-
-  getCorrelationInputClass(row: number, col: number): string {
-    if (row === col) return 'bg-surface-100 text-surface-400 cursor-not-allowed';
-    const value = this.getCorrelation(row, col);
-    if (value > 0.7) return 'bg-green-50 border-green-200';
-    if (value < -0.3) return 'bg-red-50 border-red-200';
-    return 'border-surface-200';
-  }
-
-  getModelName(model: StochasticModel): string {
-    return this.models.find(m => m.id === model)?.name || model;
+      
+      const current = this.draft().customTickers || [];
+      this.tickersChanged.emit([...current, ticker]);
   }
 }

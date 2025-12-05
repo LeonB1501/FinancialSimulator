@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SimulationService } from './core/services/simulation.service';
+import { ThemeService } from './core/services/theme.service';
 
 @Component({
   selector: 'qs-root',
@@ -18,6 +19,7 @@ import { SimulationService } from './core/services/simulation.service';
 })
 export class AppComponent implements OnInit {
   private readonly simulationService = inject(SimulationService);
+  private readonly themeService = inject(ThemeService);
 
   ngOnInit(): void {
     // Pre-initialize WASM engine

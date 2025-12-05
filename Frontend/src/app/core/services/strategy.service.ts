@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Observable, of, tap, map, catchError, shareReplay } from 'rxjs';
+import { Observable, of, map, tap, catchError, shareReplay } from 'rxjs';
 import { ApiService, PaginatedResponse } from './api.service';
 import { 
   Strategy, 
@@ -23,8 +23,40 @@ import {
   GARCHParameters,
   DEFAULT_HESTON_PARAMS,
   DEFAULT_GBM_PARAMS,
-  DEFAULT_GARCH_PARAMS
+  DEFAULT_GARCH_PARAMS,
+  DslError
 } from '../models/strategy.model';
+
+// --- DTO Interfaces matching Backend C# DTOs ---
+interface CreateStrategyRequest {
+  name: string;
+  dslScript: string;
+  configJson: string;
+  isPublic: boolean;
+}
+
+interface UpdateStrategyRequest {
+  name?: string;
+  dslScript?: string;
+  configJson?: string;
+  isPublic?: boolean;
+}
+
+interface StrategyResponseDto {
+  id: number;
+  name: string;
+  dslScript: string;
+  configJson: string;
+  isPublic: boolean;
+  createdAt: string;
+  lastModified: string;
+  latestResultId?: string; // <--- ADDED
+}
+
+interface DslValidationResponse {
+  isValid: boolean;
+  errors: DslError[];
+}
 
 export interface StrategyFilters {
   search?: string;
@@ -70,33 +102,21 @@ export class StrategyService {
   // Parameter Fetching & Mapping
   // ============================================
 
-  // ... existing code ...
-
-  // NEW: Fetch real correlations from Backend
   getCorrelations(symbols: string[]): Observable<{ row: number, col: number, value: number }[]> {
-    // Need at least 2 assets to have a correlation
     if (symbols.length < 2) return of([]);
 
-    // The C# controller expects ?tickers=SPY&tickers=QQQ...
-    let params: any = {};
-    // Angular HttpClient handles array params automatically if passed correctly, 
-    // but sometimes it's safer to construct the HttpParams object explicitly if using an interceptor chain.
-    // However, standard usage:
-    params = { tickers: symbols };
+    const params = { tickers: symbols };
 
     return this.api.get<any[]>('/MarketData/correlations', params).pipe(
       map(response => {
         const updates: { row: number, col: number, value: number }[] = [];
         
-        // Map the response (TickerA, TickerB, Value) to matrix coordinates
         response.forEach(item => {
           const idxA = symbols.findIndex(s => s.toLowerCase() === item.tickerA.toLowerCase());
           const idxB = symbols.findIndex(s => s.toLowerCase() === item.tickerB.toLowerCase());
           
           if (idxA !== -1 && idxB !== -1) {
-            // Set (A, B)
             updates.push({ row: idxA, col: idxB, value: item.value });
-            // Set (B, A) - Symmetric
             updates.push({ row: idxB, col: idxA, value: item.value }); 
           }
         });
@@ -109,34 +129,31 @@ export class StrategyService {
     );
   }
 
-
   getModelParameters(symbol: string, model: StochasticModel): Observable<any> {
-    // 1. Call the real API
     return this.api.get<any>(`/MarketData/${symbol}/params/${model}`).pipe(
       map(apiParams => {
-        // 2. If API returns empty object (no calibration data), return defaults
         if (!apiParams || Object.keys(apiParams).length === 0) {
-          console.warn(`No calibration data for ${symbol} (${model}). Using defaults.`);
           return this.getDefaultParams(model);
         }
 
-        // 3. Map API response to Frontend Model
-        // Python returns { "param": { "value": 1.23, "std_err": 0.01 } }
-        // We need to extract .value
-        const val = (key: string) => apiParams[key]?.value ?? apiParams[key];
+        // Helper to handle inconsistent capitalization from Python backend
+        const val = (key: string) => {
+          if (apiParams[key]?.value !== undefined) return apiParams[key].value;
+          const lowerKey = key.toLowerCase();
+          if (apiParams[lowerKey]?.value !== undefined) return apiParams[lowerKey].value;
+          return apiParams[key];
+        };
 
         switch (model) {
           case StochasticModel.Heston:
             return {
               kappa: val('kappa') ?? DEFAULT_HESTON_PARAMS.kappa,
               theta: val('theta') ?? DEFAULT_HESTON_PARAMS.theta,
-              // FIX: Map 'sigma_v' (Python/DB) to 'sigma' (Frontend/F#)
               sigma: val('sigma_v') ?? val('sigma') ?? DEFAULT_HESTON_PARAMS.sigma,
               rho: val('rho') ?? DEFAULT_HESTON_PARAMS.rho,
               v0: val('v0') ?? DEFAULT_HESTON_PARAMS.v0,
               mu: val('mu') ?? DEFAULT_HESTON_PARAMS.mu,
               s0: DEFAULT_HESTON_PARAMS.s0, 
-              // FIX: Add epsilon if missing
               epsilon: 0.0001 
             } as HestonParameters;
 
@@ -169,18 +186,13 @@ export class StrategyService {
   }
 
   getHistoricalData(symbol: string): Observable<any> {
-    // Cache the observable to prevent multiple in-flight requests for the same ticker
     if (this._historyCache.has(symbol)) {
       return this._historyCache.get(symbol)!;
     }
 
     const request = this.api.get<any>(`/MarketData/${symbol}`).pipe(
-      map(response => {
-        // The API returns { ticker: "...", dailyData: [{ price: 100, vol: 0.2 }, ...] }
-        // We just need the dailyData array for the F# engine
-        return response.dailyData || [];
-      }),
-      shareReplay(1), // Cache the result
+      map(response => response.dailyData || []),
+      shareReplay(1),
       catchError(err => {
         console.error(`Failed to fetch history for ${symbol}`, err);
         return of([]);
@@ -207,10 +219,25 @@ export class StrategyService {
   loadStrategies(filters?: StrategyFilters): Observable<PaginatedResponse<StrategySummary>> {
     this._loading.set(true);
     
-    return this.api.get<PaginatedResponse<StrategySummary>>('/strategies', filters as Record<string, string | number | boolean>).pipe(
+    return this.api.get<any[]>('/strategies').pipe(
+      map(dtos => {
+        const summaries: StrategySummary[] = dtos.map(dto => this.mapDtoToSummary(dto));
+        return {
+          data: summaries,
+          total: summaries.length,
+          page: 1,
+          pageSize: 100,
+          totalPages: 1
+        } as PaginatedResponse<StrategySummary>;
+      }),
       tap(response => {
         this._strategies.set(response.data);
         this._loading.set(false);
+      }),
+      catchError(err => {
+        console.error('Error loading strategies:', err);
+        this._loading.set(false);
+        throw err;
       })
     );
   }
@@ -218,37 +245,93 @@ export class StrategyService {
   loadStrategy(id: string): Observable<Strategy> {
     this._loading.set(true);
     
-    return this.api.get<Strategy>(`/strategies/${id}`).pipe(
+    return this.api.get<StrategyResponseDto>(`/strategies/${id}`).pipe(
+      map(dto => this.mapDtoToStrategy(dto)),
       tap(strategy => {
         this._currentStrategy.set(strategy);
         this._loading.set(false);
+      }),
+      catchError(err => {
+        console.error(`Error loading strategy ${id}:`, err);
+        this._loading.set(false);
+        throw err;
       })
     );
   }
 
-  createStrategy(strategy: Omit<Strategy, 'id' | 'userId' | 'createdAt' | 'updatedAt'>): Observable<Strategy> {
+  createStrategy(strategyData: any): Observable<Strategy> {
     this._saving.set(true);
     
-    return this.api.post<Strategy>('/strategies', strategy).pipe(
+    // 1. Serialize Config
+    const config = {
+      mode: strategyData.mode,
+      scenario: strategyData.scenario,
+      indices: strategyData.indices,
+      correlationMatrix: strategyData.correlationMatrix,
+      customTickers: strategyData.customTickers,
+      simulationConfig: strategyData.simulationConfig,
+      status: strategyData.status
+    };
+
+    // 2. Prepare DTO
+    const payload: CreateStrategyRequest = {
+      name: strategyData.name,
+      dslScript: strategyData.dsl.code,
+      configJson: JSON.stringify(config),
+      isPublic: false
+    };
+    
+    return this.api.post<StrategyResponseDto>('/strategies', payload).pipe(
+      map(dto => this.mapDtoToStrategy(dto)),
       tap(created => {
         this._strategies.update(list => [this.toSummary(created), ...list]);
         this._currentStrategy.set(created);
         this._saving.set(false);
         this.clearDraft();
+      }),
+      catchError(err => {
+        console.error('Error creating strategy:', err);
+        this._saving.set(false);
+        throw err;
       })
     );
   }
 
-  updateStrategy(id: string, updates: Partial<Strategy>): Observable<Strategy> {
+  updateStrategy(id: string, strategyData: any): Observable<Strategy> {
     this._saving.set(true);
     
-    return this.api.patch<Strategy>(`/strategies/${id}`, updates).pipe(
+    // 1. Serialize Config
+    const config = {
+      mode: strategyData.mode,
+      scenario: strategyData.scenario,
+      indices: strategyData.indices,
+      correlationMatrix: strategyData.correlationMatrix,
+      customTickers: strategyData.customTickers,
+      simulationConfig: strategyData.simulationConfig,
+      status: strategyData.status
+    };
+
+    // 2. Prepare DTO
+    const payload: UpdateStrategyRequest = {
+      name: strategyData.name,
+      dslScript: strategyData.dsl.code,
+      configJson: JSON.stringify(config),
+      isPublic: false
+    };
+    
+    return this.api.patch<StrategyResponseDto>(`/strategies/${id}`, payload).pipe(
+      map(dto => this.mapDtoToStrategy(dto)),
       tap(updated => {
         this._strategies.update(list => 
           list.map(s => s.id === id ? this.toSummary(updated) : s)
         );
         this._currentStrategy.set(updated);
         this._saving.set(false);
+      }),
+      catchError(err => {
+        console.error('Error updating strategy:', err);
+        this._saving.set(false);
+        throw err;
       })
     );
   }
@@ -265,11 +348,93 @@ export class StrategyService {
   }
 
   duplicateStrategy(id: string): Observable<Strategy> {
-    return this.api.post<Strategy>(`/strategies/${id}/duplicate`, {}).pipe(
+    return this.api.post<StrategyResponseDto>(`/strategies/${id}/duplicate`, {}).pipe(
+      map(dto => this.mapDtoToStrategy(dto)),
       tap(duplicated => {
         this._strategies.update(list => [this.toSummary(duplicated), ...list]);
       })
     );
+  }
+
+  // ============================================
+  // DSL Validation
+  // ============================================
+
+  validateDsl(code: string): Observable<DslCode> {
+    return this.api.post<DslValidationResponse>('/dsl/validate', { code }).pipe(
+      tap(response => {
+        if (!response.isValid && response.errors?.length > 0) {
+          console.group('%c[F# Compiler Error]', 'color: red; font-weight: bold; font-size: 12px;');
+          response.errors.forEach(err => {
+            console.error(`Line ${err.line}, Col ${err.column}: ${err.message}`);
+          });
+          console.groupEnd();
+        } else {
+          console.log('%c[F# Compiler] Code is valid', 'color: green; font-weight: bold;');
+        }
+      }),
+      map(response => ({
+        code,
+        isValid: response.isValid,
+        errors: response.errors || [],
+        warnings: []
+      } as unknown as DslCode))
+    );
+  }
+
+  // ============================================
+  // MAPPERS (DTO <-> Model)
+  // ============================================
+
+  private mapDtoToStrategy(dto: StrategyResponseDto): Strategy {
+    let config: any = {};
+    try {
+      config = JSON.parse(dto.configJson);
+    } catch (e) {
+      console.error('Failed to parse strategy config JSON', e);
+    }
+
+    return {
+      id: dto.id.toString(),
+      userId: '', 
+      name: dto.name,
+      description: '',
+      mode: config.mode || SimulationMode.Accumulation,
+      scenario: config.scenario || DEFAULT_ACCUMULATION_SCENARIO,
+      indices: config.indices || [],
+      correlationMatrix: config.correlationMatrix || { indices: [], matrix: [] },
+      customTickers: config.customTickers || [],
+      simulationConfig: config.simulationConfig || DEFAULT_SIMULATION_CONFIG,
+      dsl: {
+        code: dto.dslScript,
+        isValid: true,
+        errors: [],
+        warnings: []
+      },
+      status: config.status || StrategyStatus.Draft,
+      createdAt: new Date(dto.createdAt),
+      updatedAt: new Date(dto.lastModified),
+      lastRunAt: undefined,
+      latestResultId: dto.latestResultId // <--- MAPPED
+    };
+  }
+
+  private mapDtoToSummary(dto: any): StrategySummary {
+    let config: any = {};
+    try {
+      config = JSON.parse(dto.configJson);
+    } catch { }
+
+    return {
+      id: dto.id.toString(),
+      name: dto.name,
+      mode: config.mode || SimulationMode.Accumulation,
+      model: config.indices?.[0]?.model || StochasticModel.Heston,
+      indices: (config.indices || []).map((i: any) => i.symbol),
+      status: config.status || StrategyStatus.Draft,
+      updatedAt: new Date(dto.lastModified),
+      latestResultId: dto.latestResultId // <--- MAPPED
+    };
   }
 
   // ============================================
@@ -293,7 +458,6 @@ export class StrategyService {
   }
 
   setDraftIndices(indices: Index[]): void {
-    // Auto-generate correlation matrix
     const symbols = indices.map(i => i.symbol);
     const matrix = this.generateDefaultCorrelationMatrix(symbols.length);
     
@@ -309,7 +473,7 @@ export class StrategyService {
       const matrix = current.correlationMatrix?.matrix.map(r => [...r]) || [];
       if (matrix[row] && matrix[col]) {
         matrix[row][col] = value;
-        matrix[col][row] = value; // Symmetric
+        matrix[col][row] = value;
       }
       return {
         ...current,
@@ -326,7 +490,7 @@ export class StrategyService {
       ...current,
       dsl: {
         code,
-        isValid: true, // Will be validated by backend
+        isValid: true,
         errors: [],
         warnings: [],
       },
@@ -352,14 +516,6 @@ export class StrategyService {
   }
 
   // ============================================
-  // DSL Validation
-  // ============================================
-
-  validateDsl(code: string): Observable<DslCode> {
-    return this.api.post<DslCode>('/dsl/validate', { code });
-  }
-
-  // ============================================
   // Helper Methods
   // ============================================
 
@@ -372,7 +528,7 @@ export class StrategyService {
       indices: strategy.indices.map(i => i.symbol),
       status: strategy.status,
       updatedAt: strategy.updatedAt,
-      hasResults: !!strategy.resultsId,
+      latestResultId: strategy.latestResultId,
     };
   }
 
@@ -381,7 +537,7 @@ export class StrategyService {
     for (let i = 0; i < size; i++) {
       matrix[i] = [];
       for (let j = 0; j < size; j++) {
-        matrix[i][j] = i === j ? 1 : 0.5; // Default correlation
+        matrix[i][j] = i === j ? 1 : 0.5;
       }
     }
     return matrix;

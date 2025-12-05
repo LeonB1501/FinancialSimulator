@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, tap, catchError, of, throwError } from 'rxjs';
 import { ApiService } from './api.service';
+import { ThemeService } from './theme.service';
 import { 
   User, 
   AuthState, 
@@ -19,6 +20,7 @@ const AUTH_USER_KEY = 'quantsim_user';
 export class AuthService {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly themeService = inject(ThemeService);
 
   // State signals
   private readonly _user = signal<User | null>(null);
@@ -144,6 +146,8 @@ export class AuthService {
   logout(): void {
     this.clearAuth();
     this._error.set(null);
+    // FIX: Reset theme to light mode on logout
+    this.themeService.setTheme('light');
     this.router.navigate(['/']);
   }
 

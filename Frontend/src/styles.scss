@@ -16,7 +16,16 @@ html, body {
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply antialiased bg-surface-50 text-surface-900;
+  @apply antialiased;
+  background-color: #F8FAFC;
+  color: #0F172A;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+// Dark mode base
+.dark body {
+  background-color: #0F172A;
+  color: #F1F5F9;
 }
 
 // ============================================
@@ -27,11 +36,22 @@ body {
 .gradient-bg {
   background: linear-gradient(135deg, #1E3A5F 0%, #0F1F33 50%, #162D4A 100%);
 }
+
+.dark .gradient-bg {
+  background: linear-gradient(135deg, #0A1421 0%, #0F172A 50%, #0F1F33 100%);
+}
+
 .glass {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
+
+.dark .glass {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .path-animation {
   animation: pathDraw 3s ease-in-out infinite;
 }
@@ -70,6 +90,11 @@ body {
   width: 2px;
   background: linear-gradient(to bottom, #00D4AA 0%, #E2E8F0 100%);
 }
+
+.dark .step-line {
+  background: linear-gradient(to bottom, #00D4AA 0%, #334155 100%);
+}
+
 .correlation-cell {
   transition: background-color 0.2s;
 }
@@ -156,12 +181,70 @@ body {
   }
 
   // Glassmorphism
-  .glass {
-    @apply bg-white/80 backdrop-blur-lg border border-white/20;
-  }
-
   .glass-dark {
     @apply bg-surface-900/80 backdrop-blur-lg border border-surface-700/50;
+  }
+}
+
+// ============================================
+// DARK MODE COMPONENT OVERRIDES
+// ============================================
+
+.dark {
+  .btn-primary {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  }
+
+  .btn-secondary {
+    border-color: #475569;
+    color: #CBD5E1;
+    &:hover {
+      background-color: #1E293B;
+    }
+  }
+
+  .btn-ghost {
+    color: #94A3B8;
+    &:hover {
+      background-color: #1E293B;
+    }
+  }
+
+  .card {
+    background-color: #1E293B;
+    border-color: #334155;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  }
+
+  .card-hover:hover {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+    border-color: #475569;
+  }
+
+  .input {
+    background-color: #1E293B;
+    border-color: #475569;
+    color: #F1F5F9;
+    &::placeholder {
+      color: #64748B;
+    }
+  }
+
+  .label {
+    color: #CBD5E1;
+  }
+
+  .section-title {
+    color: #F1F5F9;
+  }
+
+  .section-subtitle {
+    color: #94A3B8;
+  }
+
+  .glass {
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(51, 65, 85, 0.5);
   }
 }
 
@@ -170,6 +253,16 @@ body {
 // ============================================
 // NOTE: Using standard CSS here to avoid SASS/Tailwind !important conflicts
 
+
+// Force text color for inactive tabs in dark mode
+.dark .mat-mdc-tab:not(.mdc-tab--active) .mdc-tab__text-label {
+  color: #94A3B8 !important; // Slate-400
+}
+
+// Ensure active tab is white/bright
+.dark .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: #F1F5F9 !important; // Slate-100
+}
 // Mat Form Field - Force clean look
 .mat-mdc-form-field {
   width: 100%;
@@ -186,6 +279,10 @@ body {
   height: 48px !important;
 }
 
+.dark .mat-mdc-text-field-wrapper {
+  background-color: #1E293B !important;
+}
+
 .mat-mdc-form-field-infix {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
@@ -198,11 +295,26 @@ body {
   border-color: #E2E8F0 !important;
 }
 
+.dark .mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__leading,
+.dark .mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__notch,
+.dark .mdc-text-field--outlined .mdc-notched-outline .mdc-notched-outline__trailing {
+  border-color: #475569 !important;
+}
+
 .mat-mdc-form-field.mat-focused .mdc-notched-outline .mdc-notched-outline__leading,
 .mat-mdc-form-field.mat-focused .mdc-notched-outline .mdc-notched-outline__notch,
 .mat-mdc-form-field.mat-focused .mdc-notched-outline .mdc-notched-outline__trailing {
   border-color: #00D4AA !important;
   border-width: 2px !important;
+}
+
+// Mat Input text color
+.mat-mdc-input-element {
+  color: #0F172A !important;
+}
+
+.dark .mat-mdc-input-element {
+  color: #F1F5F9 !important;
 }
 
 // Mat Button
@@ -223,12 +335,24 @@ body {
   border-bottom: 1px solid #E2E8F0;
 }
 
+.dark .mat-mdc-tab-group .mat-mdc-tab-header {
+  border-bottom: 1px solid #334155;
+}
+
 .mat-mdc-tab-group .mat-mdc-tab {
   color: #475569;
 }
 
+.dark .mat-mdc-tab-group .mat-mdc-tab {
+  color: #94A3B8;
+}
+
 .mat-mdc-tab-group .mat-mdc-tab.mdc-tab--active {
   color: #1E3A5F;
+}
+
+.dark .mat-mdc-tab-group .mat-mdc-tab.mdc-tab--active {
+  color: #F1F5F9;
 }
 
 .mat-mdc-tab-group .mdc-tab-indicator__content--underline {
@@ -241,6 +365,10 @@ body {
   border-radius: 1rem !important;
 }
 
+.dark .mat-mdc-dialog-container .mdc-dialog__surface {
+  background-color: #1E293B !important;
+}
+
 // Mat Stepper
 .mat-stepper-horizontal {
   background-color: transparent !important;
@@ -248,6 +376,10 @@ body {
 
 .mat-step-header .mat-step-icon {
   background-color: #CBD5E1;
+}
+
+.dark .mat-step-header .mat-step-icon {
+  background-color: #475569;
 }
 
 .mat-step-header .mat-step-icon.mat-step-icon-selected {
@@ -258,6 +390,18 @@ body {
   background-color: #10B981;
 }
 
+.mat-step-header .mat-step-label {
+  color: #475569;
+}
+
+.dark .mat-step-header .mat-step-label {
+  color: #94A3B8;
+}
+
+.dark .mat-step-header .mat-step-label.mat-step-label-active {
+  color: #F1F5F9;
+}
+
 // Mat Menu
 .mat-mdc-menu-panel {
   border-radius: 0.75rem !important;
@@ -265,12 +409,26 @@ body {
   border: 1px solid #E2E8F0 !important;
 }
 
+.dark .mat-mdc-menu-panel {
+  background-color: #1E293B !important;
+  border: 1px solid #334155 !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3) !important;
+}
+
 .mat-mdc-menu-item {
   color: #334155 !important;
 }
 
+.dark .mat-mdc-menu-item {
+  color: #CBD5E1 !important;
+}
+
 .mat-mdc-menu-item:hover {
   background-color: #F8FAFC !important;
+}
+
+.dark .mat-mdc-menu-item:hover {
+  background-color: #334155 !important;
 }
 
 // Mat Select
@@ -281,9 +439,35 @@ body {
   border: 1px solid #E2E8F0 !important;
 }
 
+.dark .mat-mdc-select-panel {
+  background-color: #1E293B !important;
+  border: 1px solid #334155 !important;
+}
+
+.mat-mdc-select-value-text {
+  color: #0F172A !important;
+}
+
+.dark .mat-mdc-select-value-text {
+  color: #F1F5F9 !important;
+}
+
+.mat-mdc-option {
+  color: #334155 !important;
+}
+
+.dark .mat-mdc-option {
+  color: #CBD5E1 !important;
+}
+
 .mat-mdc-option.mdc-list-item--selected {
   background-color: #F0FDFA !important;
   color: #00A080 !important;
+}
+
+.dark .mat-mdc-option.mdc-list-item--selected {
+  background-color: #002E26 !important;
+  color: #00D4AA !important;
 }
 
 // Mat Snackbar
@@ -311,6 +495,10 @@ body {
 
 .monaco-editor .margin {
   background-color: #F8FAFC !important;
+}
+
+.dark .monaco-editor .margin {
+  background-color: #1E293B !important;
 }
 
 .monaco-editor .line-numbers {
@@ -346,13 +534,25 @@ body {
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-track {
+  background-color: #1E293B;
+}
+
 ::-webkit-scrollbar-thumb {
   background-color: #CBD5E1;
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background-color: #94A3B8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #64748B;
 }
 
 // ============================================

@@ -17,8 +17,8 @@ export interface ConfirmationDialogData {
   imports: [CommonModule, MatDialogModule, MatButtonModule],
   template: `
     <div class="p-6">
-      <h2 class="text-xl font-semibold text-surface-900 mb-3">{{ data.title }}</h2>
-      <p class="text-surface-600 mb-6">{{ data.message }}</p>
+      <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-100 mb-3">{{ data.title }}</h2>
+      <p class="text-surface-600 dark:text-surface-400 mb-6">{{ data.message }}</p>
       
       <div class="flex justify-end space-x-3">
         <button 
