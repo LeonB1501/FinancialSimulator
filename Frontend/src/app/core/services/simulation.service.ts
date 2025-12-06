@@ -161,23 +161,44 @@ export class SimulationService {
       console.log('🚀 Sending to Worker:', JSON.stringify(input, null, 2));
 
       worker.onmessage = ({ data }) => {
-        if (data.type === 'success') {
+        if (data.type === 'progress') {
+          // Handle real-time progress updates from the F# engine
+          const completed = data.completed as number;
+          const total = data.total as number;
+          const percent = (completed / total) * 100;
+
+          // Calculate elapsed time
+          const elapsedMs = Date.now() - startTime;
+
+          // Estimate remaining time based on current speed
+          let estimatedRemainingMs = 0;
+          if (completed > 0) {
+            const avgTimePerIteration = elapsedMs / completed;
+            estimatedRemainingMs = avgTimePerIteration * (total - completed);
+          }
+
+          this.updateProgress(percent, total, 'Running simulation...', elapsedMs, estimatedRemainingMs);
+
+        } else if (data.type === 'success') {
           this._state.set(SimulationState.Processing);
-          
+
+          // Final elapsed time
+          const finalElapsedMs = Date.now() - startTime;
+
           // Update progress to 100%
-          this.updateProgress(100, strategy.simulationConfig.iterations, 'Processing results...');
+          this.updateProgress(100, strategy.simulationConfig.iterations, 'Processing results...', finalElapsedMs, 0);
 
           try {
             // 1. Process Raw Data from WASM
             const results = this.processResults(strategy, data.payload, startTime);
-            
+
             // 2. Save to Backend
             this.saveResultsToBackend(results).subscribe({
               next: (savedRecord) => {
                 console.log('Results saved successfully with ID:', savedRecord.id);
                 this._state.set(SimulationState.Completed);
                 if (this.currentJob) this.currentJob.completedAt = new Date();
-                
+
                 // Return the results
                 observer.next({ ...results, id: savedRecord.id });
                 observer.complete();
@@ -235,13 +256,22 @@ export class SimulationService {
 
   // --- Helper Methods ---
 
-  private updateProgress(percent: number, total: number, phase: string) {
+  private updateProgress(
+    percent: number,
+    total: number,
+    phase: string,
+    elapsedMs?: number,
+    estimatedRemainingMs?: number
+  ) {
     if (this.currentJob) {
       this.currentJob.progress = {
         ...this.currentJob.progress,
         percentComplete: percent,
         completedIterations: Math.floor((percent / 100) * total),
-        currentPhase: phase
+        totalIterations: total,
+        currentPhase: phase,
+        elapsedMs: elapsedMs ?? this.currentJob.progress.elapsedMs,
+        estimatedRemainingMs: estimatedRemainingMs ?? this.currentJob.progress.estimatedRemainingMs
       };
       this._progress.set(this.currentJob.progress);
       this.progressSubject.next(this.currentJob.progress);

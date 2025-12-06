@@ -2,5 +2,6 @@ export * from './api.service';
 export * from './auth.service';
 export * from './strategy.service';
 export * from './simulation.service';
+export * from './simulation-queue.service';
 export * from './notification.service';
 export * from './theme.service';

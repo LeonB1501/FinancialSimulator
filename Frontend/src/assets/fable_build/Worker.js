@@ -4,7 +4,7 @@ import { list_type, array_type, option_type, bool_type, record_type, int32_type,
 import { SimulationReport_$reflection, AnalysisConfiguration_$reflection } from "./Analytics/AnalyticsTypes.js";
 import { Auto_generateBoxedDecoder_Z6670B51, fromString } from "./fable_modules/Thoth.Json.10.2.0/Decode.fs.js";
 import { comparePrimitives, uncurry2 } from "./fable_modules/fable-library-js.4.27.0/Util.js";
-import { compileStrategy, runSimulation } from "./Engine/SimulationEngine.js";
+import { compileStrategy, runSimulationWithProgress, runSimulation } from "./Engine/SimulationEngine.js";
 import { Auto_generateBoxedEncoder_437914C6, toString } from "./fable_modules/Thoth.Json.10.2.0/Encode.fs.js";
 import { aggregate } from "./Analytics/Aggregator.js";
 import { map } from "./fable_modules/fable-library-js.4.27.0/Array.js";
@@ -78,11 +78,41 @@ export function ValidationResponse_$reflection() {
     return record_type("Worker.ValidationResponse", [], ValidationResponse, () => [["IsValid", bool_type], ["Errors", list_type(ValidationError_$reflection())]]);
 }
 
+/**
+ * Original wrapper without progress callback (for backward compatibility)
+ */
 export function runSimulationWrapper(jsonInput) {
     const matchValue = fromString(uncurry2(Auto_generateBoxedDecoder_Z6670B51(SimulationRequest_$reflection(), undefined, undefined)), jsonInput);
     if (matchValue.tag === 0) {
         const req = matchValue.fields[0];
         const matchValue_1 = runSimulation(req.Config, req.DslCode, req.InitialCash, req.BaseSeed);
+        if (matchValue_1.tag === 1) {
+            const response_2 = new SimulationResponse(false, matchValue_1.fields[0], undefined, undefined);
+            return toString(0, Auto_generateBoxedEncoder_437914C6(SimulationResponse_$reflection(), undefined, undefined, undefined)(response_2));
+        }
+        else {
+            const results = matchValue_1.fields[0];
+            const response_1 = new SimulationResponse(true, undefined, aggregate(results, map((r) => calculateSingleRun(r, req.Analysis), results), req.Analysis, req.Config.StartDate), results);
+            return toString(0, Auto_generateBoxedEncoder_437914C6(SimulationResponse_$reflection(), undefined, undefined, undefined)(response_1));
+        }
+    }
+    else {
+        const response = new SimulationResponse(false, `JSON Parse Error: ${matchValue.fields[0]}`, undefined, undefined);
+        return toString(0, Auto_generateBoxedEncoder_437914C6(SimulationResponse_$reflection(), undefined, undefined, undefined)(response));
+    }
+}
+
+/**
+ * New wrapper with progress callback support
+ * The onProgress callback is a JavaScript function: (completed: number, total: number) => void
+ */
+export function runSimulationWithProgressWrapper(jsonInput, onProgress) {
+    const matchValue = fromString(uncurry2(Auto_generateBoxedDecoder_Z6670B51(SimulationRequest_$reflection(), undefined, undefined)), jsonInput);
+    if (matchValue.tag === 0) {
+        const req = matchValue.fields[0];
+        const matchValue_1 = runSimulationWithProgress(req.Config, req.DslCode, req.InitialCash, req.BaseSeed, (completed, total) => {
+            onProgress(completed, total);
+        });
         if (matchValue_1.tag === 1) {
             const response_2 = new SimulationResponse(false, matchValue_1.fields[0], undefined, undefined);
             return toString(0, Auto_generateBoxedEncoder_437914C6(SimulationResponse_$reflection(), undefined, undefined, undefined)(response_2));

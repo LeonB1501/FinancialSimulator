@@ -1,7 +1,8 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { Subscription } from 'rxjs';
 import { HeaderComponent } from '@shared/components/header/header.component';
 import { StrategyCardComponent } from '@shared/components/strategy-card/strategy-card.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
@@ -10,8 +11,9 @@ import { SimulationProgressDialogComponent } from '../strategy-builder/simulatio
 import { AuthService } from '@core/services/auth.service';
 import { StrategyService } from '@core/services/strategy.service';
 import { SimulationService } from '@core/services/simulation.service';
+import { SimulationQueueService } from '@core/services/simulation-queue.service';
 import { NotificationService } from '@core/services/notification.service';
-import { StrategySummary } from '@core/models';
+import { StrategySummary, Strategy } from '@core/models';
 
 interface ActivityItem {
   id: string;
@@ -255,13 +257,16 @@ interface QuickStats {
     </div>
   `,
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   readonly strategyService = inject(StrategyService);
   private readonly simulationService = inject(SimulationService);
+  private readonly queueService = inject(SimulationQueueService);
   private readonly notificationService = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+
+  private queueCompleteSub?: Subscription;
 
   readonly recentStrategies = signal<StrategySummary[]>([]);
   readonly activityItems = signal<ActivityItem[]>([]);
@@ -273,6 +278,15 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadDashboardData();
+    
+    // Listen for background simulation completions to refresh dashboard
+    this.queueCompleteSub = this.queueService.onComplete$.subscribe(() => {
+      this.loadDashboardData();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.queueCompleteSub?.unsubscribe();
   }
 
   private loadDashboardData(): void {
@@ -338,6 +352,10 @@ export class DashboardComponent implements OnInit {
           if (result?.success) {
             this.notificationService.success('Simulation completed successfully!');
             this.router.navigate(['/results', strategy.id]);
+          } else if (result?.minimized) {
+            // Register with queue for background tracking
+            this.queueService.registerRunning(fullStrategy as Strategy);
+            this.notificationService.info('Simulation running in background. Check the indicator in the header.');
           } else if (result?.cancelled) {
             this.notificationService.info('Simulation cancelled.');
           }

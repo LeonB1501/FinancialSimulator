@@ -520,10 +520,17 @@ export class ModelConfigComponent implements OnInit {
     }
   }
 
+  // --- FORMATTING HELPER ---
+  private formatParam(value: number, decimals: number = 4): number {
+    const factor = Math.pow(10, decimals);
+    return Math.round(value * factor) / factor;
+  }
+
   // --- HESTON HELPERS ---
   getHestonParam(index: Index, param: keyof HestonParameters): number {
     const params = index.parameters as HestonParameters;
-    return params?.[param] ?? DEFAULT_HESTON_PARAMS[param];
+    const value = params?.[param] ?? DEFAULT_HESTON_PARAMS[param];
+    return this.formatParam(value);
   }
 
   updateHestonParam(indexPos: number, param: keyof HestonParameters, event: Event): void {
@@ -540,7 +547,8 @@ export class ModelConfigComponent implements OnInit {
   // --- GBM HELPERS ---
   getGBMParam(index: Index, param: keyof GBMParameters): number {
     const params = index.parameters as GBMParameters;
-    return params?.[param] ?? DEFAULT_GBM_PARAMS[param];
+    const value = params?.[param] ?? DEFAULT_GBM_PARAMS[param];
+    return this.formatParam(value);
   }
 
   updateGBMParam(indexPos: number, param: keyof GBMParameters, event: Event): void {
@@ -557,7 +565,9 @@ export class ModelConfigComponent implements OnInit {
   // --- GARCH HELPERS ---
   getGARCHParam(index: Index, param: keyof GARCHParameters): number {
     const params = index.parameters as GARCHParameters;
-    return params?.[param] ?? DEFAULT_GARCH_PARAMS[param];
+    const value = params?.[param] ?? DEFAULT_GARCH_PARAMS[param];
+    // GARCH omega needs more precision (it's typically very small like 0.000002)
+    return param === 'omega' ? this.formatParam(value, 6) : this.formatParam(value);
   }
 
   updateGARCHParam(indexPos: number, param: keyof GARCHParameters, event: Event): void {

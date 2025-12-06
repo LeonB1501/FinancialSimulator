@@ -35,6 +35,25 @@ export interface SimulationJob {
 }
 
 // ============================================
+// SIMULATION QUEUE
+// ============================================
+
+export type QueuedSimulationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface QueuedSimulation {
+  id: string;
+  strategyId: string;
+  strategyName: string;
+  status: QueuedSimulationStatus;
+  progress: SimulationProgress;
+  queuedAt: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  resultsId?: string;
+  error?: string;
+}
+
+// ============================================
 // WASM INTERFACE
 // ============================================
 

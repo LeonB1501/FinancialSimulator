@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '@core/services/auth.service';
 import { ThemeService } from '@core/services/theme.service';
+import { SimulationIndicatorComponent } from '../simulation-indicator/simulation-indicator.component';
 
 @Component({
   selector: 'qs-header',
@@ -17,6 +18,7 @@ import { ThemeService } from '@core/services/theme.service';
     MatMenuModule,
     MatButtonModule,
     MatIconModule,
+    SimulationIndicatorComponent,
   ],
   template: `
     <header class="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-surface-800 shadow-soft dark:shadow-soft-dark border-b border-transparent dark:border-surface-700 transition-colors duration-300">
@@ -92,6 +94,9 @@ import { ThemeService } from '@core/services/theme.service';
             </button>
 
             @if (authService.isAuthenticated()) {
+              <!-- Simulation Indicator -->
+              <qs-simulation-indicator />
+
               <!-- User Menu -->
               <button 
                 [matMenuTriggerFor]="userMenu"

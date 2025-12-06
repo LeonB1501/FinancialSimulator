@@ -1,14 +1,16 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
+import { Subscription } from 'rxjs';
 import { HeaderComponent } from '@shared/components/header/header.component';
 import { StrategyCardComponent } from '@shared/components/strategy-card/strategy-card.component';
 import { StrategyService } from '@core/services/strategy.service';
 import { SimulationService } from '@core/services/simulation.service';
+import { SimulationQueueService } from '@core/services/simulation-queue.service';
 import { NotificationService } from '@core/services/notification.service';
-import { StrategySummary, SimulationMode, StrategyStatus } from '@core/models';
+import { StrategySummary, Strategy, SimulationMode, StrategyStatus } from '@core/models';
 import { SimulationProgressDialogComponent } from '../../strategy-builder/simulation-progress-dialog/simulation-progress-dialog.component';
 import { ConfirmationDialogComponent, ConfirmationDialogData } from '@shared/components/confirmation-dialog/confirmation-dialog.component';
 
@@ -134,12 +136,15 @@ import { ConfirmationDialogComponent, ConfirmationDialogData } from '@shared/com
     </div>
   `
 })
-export class StrategiesListComponent implements OnInit {
+export class StrategiesListComponent implements OnInit, OnDestroy {
   readonly strategyService = inject(StrategyService);
   private readonly simulationService = inject(SimulationService);
+  private readonly queueService = inject(SimulationQueueService);
   private readonly dialog = inject(MatDialog);
   private readonly notificationService = inject(NotificationService);
   private readonly router = inject(Router);
+  
+  private queueCompleteSub?: Subscription;
   
   readonly SimulationMode = SimulationMode;
   readonly StrategyStatus = StrategyStatus;
@@ -174,6 +179,15 @@ export class StrategiesListComponent implements OnInit {
 
   ngOnInit() {
     this.loadStrategies();
+    
+    // Listen for background simulation completions to refresh list
+    this.queueCompleteSub = this.queueService.onComplete$.subscribe(() => {
+      this.loadStrategies();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.queueCompleteSub?.unsubscribe();
   }
 
   loadStrategies() {
@@ -196,6 +210,10 @@ export class StrategiesListComponent implements OnInit {
           if (result?.success) {
             this.notificationService.success('Simulation completed successfully!');
             this.router.navigate(['/results', strategy.id]);
+          } else if (result?.minimized) {
+            // Register with queue for background tracking
+            this.queueService.registerRunning(fullStrategy as Strategy);
+            this.notificationService.info('Simulation running in background. Check the indicator in the header.');
           } else if (result?.cancelled) {
             this.notificationService.info('Simulation cancelled.');
           }

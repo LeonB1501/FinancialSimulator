@@ -11,10 +11,11 @@ import { DslEditorComponent } from './steps/dsl-editor/dsl-editor.component';
 import { ReviewComponent } from './steps/review/review.component';
 import { SimulationProgressDialogComponent } from './simulation-progress-dialog/simulation-progress-dialog.component';
 import { StrategyService } from '@core/services/strategy.service';
+import { SimulationQueueService } from '@core/services/simulation-queue.service';
 import { NotificationService } from '@core/services/notification.service';
-import { 
-  StrategyDraft, 
-  SimulationMode, 
+import {
+  StrategyDraft,
+  SimulationMode,
   DEFAULT_SIMULATION_CONFIG,
   Strategy,
   StrategyStatus,
@@ -227,6 +228,7 @@ interface WizardStep {
 })
 export class StrategyBuilderComponent implements OnInit {
   readonly strategyService = inject(StrategyService);
+  private readonly queueService = inject(SimulationQueueService);
   private readonly notificationService = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -490,6 +492,10 @@ export class StrategyBuilderComponent implements OnInit {
     dialogRef.afterClosed().subscribe(result => {
       if (result?.success) {
         this.router.navigate(['/results', strategy.id]);
+      } else if (result?.minimized) {
+        // Simulation is already running in background, register with queue for tracking
+        this.queueService.registerRunning(strategy);
+        this.notificationService.info('Simulation running in background. Check the indicator in the header.');
       }
     });
   }

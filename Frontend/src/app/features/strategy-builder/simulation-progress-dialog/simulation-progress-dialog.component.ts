@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Subscription } from 'rxjs';
+import { Subscription, interval } from 'rxjs';
 import { SimulationService } from '@core/services/simulation.service';
 import { Strategy, SimulationState } from '@core/models';
 import { DurationPipe } from '@shared/pipes/duration.pipe';
 
 interface DialogData {
   strategy: Strategy;
+  reconnect?: boolean; // If true, just show progress without starting new simulation
 }
 
 @Component({
@@ -58,8 +59,8 @@ interface DialogData {
         
         <!-- Center content -->
         <div class="absolute inset-0 flex flex-col items-center justify-center">
-          <span class="text-4xl font-bold text-surface-900">{{ percentComplete() }}%</span>
-          <span class="text-sm text-surface-500 mt-1">
+          <span class="text-4xl font-bold text-surface-900 dark:text-surface-100">{{ percentComplete() | number:'1.0-1' }}%</span>
+          <span class="text-sm text-surface-500 dark:text-surface-400 mt-1">
             {{ completedIterations() | number }} / {{ totalIterations() | number }}
           </span>
         </div>
@@ -67,32 +68,43 @@ interface DialogData {
 
       <!-- Status -->
       <div class="mb-6">
-        <h2 class="text-xl font-semibold text-surface-900 mb-2">
+        <h2 class="text-xl font-semibold text-surface-900 dark:text-surface-100 mb-2">
           {{ statusTitle() }}
         </h2>
-        <p class="text-surface-600">{{ currentPhase() }}</p>
+        <p class="text-surface-600 dark:text-surface-400">{{ currentPhase() }}</p>
       </div>
 
       <!-- Time Info -->
       <div class="flex justify-center space-x-8 mb-8">
         <div>
-          <p class="text-sm text-surface-500">Elapsed</p>
-          <p class="font-medium text-surface-900">{{ elapsedMs() | duration }}</p>
+          <p class="text-sm text-surface-500 dark:text-surface-400">Elapsed</p>
+          <p class="font-medium text-surface-900 dark:text-surface-100">{{ elapsedMs() | duration }}</p>
         </div>
         <div>
-          <p class="text-sm text-surface-500">Remaining</p>
-          <p class="font-medium text-surface-900">{{ estimatedRemainingMs() | duration }}</p>
+          <p class="text-sm text-surface-500 dark:text-surface-400">Remaining</p>
+          <p class="font-medium text-surface-900 dark:text-surface-100">{{ estimatedRemainingMs() | duration }}</p>
         </div>
       </div>
 
-      <!-- Cancel Button -->
+      <!-- Action Buttons -->
       @if (canCancel()) {
-        <button 
-          (click)="onCancel()"
-          class="btn-secondary btn-md"
-        >
-          Cancel Simulation
-        </button>
+        <div class="flex justify-center space-x-3">
+          <button
+            (click)="onMinimize()"
+            class="btn-secondary btn-md"
+          >
+            <svg class="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+            Minimize
+          </button>
+          <button
+            (click)="onCancel()"
+            class="btn-secondary btn-md text-red-600 hover:text-red-700 dark:text-red-400"
+          >
+            Cancel
+          </button>
+        </div>
       }
 
       <!-- Error State -->
@@ -133,10 +145,15 @@ export class SimulationProgressDialogComponent implements OnInit, OnDestroy {
   private readonly data = inject<DialogData>(MAT_DIALOG_DATA);
   private readonly simulationService = inject(SimulationService);
 
-  private subscription?: Subscription;
+  private progressSubscription?: Subscription;
+  private simulationSubscription?: Subscription;
+  private timerSubscription?: Subscription;
+  private startTime: number = 0;
+  private iterationsPerMs: number = 0;
+  private isMinimized = false;
 
   readonly circumference = 2 * Math.PI * 88;
-  
+
   readonly percentComplete = signal(0);
   readonly completedIterations = signal(0);
   readonly totalIterations = signal(0);
@@ -144,11 +161,11 @@ export class SimulationProgressDialogComponent implements OnInit, OnDestroy {
   readonly elapsedMs = signal(0);
   readonly estimatedRemainingMs = signal(0);
   readonly error = signal<string | null>(null);
-  
+
   readonly state = this.simulationService.state;
-  
+
   dashOffset = () => this.circumference - (this.percentComplete() / 100) * this.circumference;
-  
+
   statusTitle = () => {
     switch (this.state()) {
       case SimulationState.Preparing: return 'Preparing Simulation';
@@ -166,29 +183,88 @@ export class SimulationProgressDialogComponent implements OnInit, OnDestroy {
   isComplete = () => this.state() === SimulationState.Completed;
 
   ngOnInit(): void {
-    // Subscribe to progress updates
-    this.subscription = this.simulationService.progress$.subscribe(progress => {
+    this.startTime = Date.now();
+
+    // Local timer to update elapsed time smoothly every 100ms
+    this.timerSubscription = interval(100).subscribe(() => {
+      const state = this.state();
+      if (state === SimulationState.Running || state === SimulationState.Preparing) {
+        const currentElapsed = Date.now() - this.startTime;
+        this.elapsedMs.set(currentElapsed);
+
+        // Recalculate remaining time based on current speed
+        if (this.iterationsPerMs > 0 && this.totalIterations() > 0) {
+          const remaining = this.totalIterations() - this.completedIterations();
+          this.estimatedRemainingMs.set(remaining / this.iterationsPerMs);
+        }
+      }
+    });
+
+    // Subscribe to progress updates from the service
+    this.progressSubscription = this.simulationService.progress$.subscribe(progress => {
       this.percentComplete.set(progress.percentComplete);
       this.completedIterations.set(progress.completedIterations);
       this.totalIterations.set(progress.totalIterations);
       this.currentPhase.set(progress.currentPhase);
+
+      // Calculate iteration speed for smoother remaining time estimates
+      if (progress.completedIterations > 0 && progress.elapsedMs > 0) {
+        this.iterationsPerMs = progress.completedIterations / progress.elapsedMs;
+      }
+
+      // Use the service's elapsed/remaining as ground truth when we receive updates
       this.elapsedMs.set(progress.elapsedMs);
       this.estimatedRemainingMs.set(progress.estimatedRemainingMs);
+      
+      // Handle completion/failure during reconnect
+      if (this.data.reconnect) {
+        if (progress.state === SimulationState.Completed) {
+          this.dialogRef.close({ success: true });
+        } else if (progress.state === SimulationState.Failed) {
+          this.error.set('Simulation failed');
+        }
+      }
     });
 
-    // Start simulation
-    this.simulationService.runSimulation(this.data.strategy).subscribe({
-      next: () => {
-        this.percentComplete.set(100);
-      },
-      error: (err) => {
-        this.error.set(err.message || 'Simulation failed');
-      },
-    });
+    // Only start a new simulation if this is not a reconnect
+    if (!this.data.reconnect) {
+      this.simulationSubscription = this.simulationService.runSimulation(this.data.strategy).subscribe({
+        next: () => {
+          this.percentComplete.set(100);
+          this.estimatedRemainingMs.set(0);
+        },
+        error: (err) => {
+          this.error.set(err.message || 'Simulation failed');
+        },
+      });
+    } else {
+      // For reconnect, sync with current progress immediately
+      const currentProgress = this.simulationService.progress();
+      this.percentComplete.set(currentProgress.percentComplete);
+      this.completedIterations.set(currentProgress.completedIterations);
+      this.totalIterations.set(currentProgress.totalIterations);
+      this.currentPhase.set(currentProgress.currentPhase);
+      this.elapsedMs.set(currentProgress.elapsedMs);
+      this.estimatedRemainingMs.set(currentProgress.estimatedRemainingMs);
+    }
   }
 
   ngOnDestroy(): void {
-    this.subscription?.unsubscribe();
+    this.progressSubscription?.unsubscribe();
+    this.timerSubscription?.unsubscribe();
+
+    // Only unsubscribe (and terminate worker) if NOT minimized
+    // When minimized, we want the simulation to keep running in the background
+    if (!this.isMinimized) {
+      this.simulationSubscription?.unsubscribe();
+    }
+  }
+
+  onMinimize(): void {
+    // Mark as minimized so ngOnDestroy doesn't kill the simulation
+    this.isMinimized = true;
+    // Close dialog but keep simulation running in background
+    this.dialogRef.close({ success: false, minimized: true, strategyId: this.data.strategy.id });
   }
 
   onCancel(): void {
