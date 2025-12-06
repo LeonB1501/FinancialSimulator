@@ -38,6 +38,18 @@ export const routes: Routes = [
     loadComponent: () => import('./features/results/historic-results.component').then(m => m.HistoricResultsComponent),
     canActivate: [authGuard],
   },
+  // --- NEW ROUTES ---
+  {
+    path: 'upgrade',
+    loadComponent: () => import('./features/subscription/upgrade/upgrade.component').then(m => m.UpgradeComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'payment/success',
+    loadComponent: () => import('./features/subscription/success/success.component').then(m => m.SuccessComponent),
+    canActivate: [authGuard],
+  },
+  // ------------------
   {
     path: '**',
     redirectTo: '',

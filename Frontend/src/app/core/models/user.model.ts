@@ -3,7 +3,8 @@ export interface User {
   email: string;
   name: string;
   createdAt: Date;
-  // updatedAt: Date; // Remove this if C# doesn't send it, or make it optional
+  subscriptionTier: 'Free' | 'Pro';
+  subscriptionStatus: 'Inactive' | 'Active' | 'PastDue' | 'Canceled';
 }
 
 export interface AuthState {

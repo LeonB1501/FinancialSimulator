@@ -8,11 +8,13 @@ import { StrategyCardComponent } from '@shared/components/strategy-card/strategy
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { ConfirmationDialogComponent, ConfirmationDialogData } from '@shared/components/confirmation-dialog/confirmation-dialog.component';
 import { SimulationProgressDialogComponent } from '../strategy-builder/simulation-progress-dialog/simulation-progress-dialog.component';
+import { PremiumDialogComponent } from '@shared/components/premium-dialog/premium-dialog.component';
 import { AuthService } from '@core/services/auth.service';
 import { StrategyService } from '@core/services/strategy.service';
 import { SimulationService } from '@core/services/simulation.service';
 import { SimulationQueueService } from '@core/services/simulation-queue.service';
 import { NotificationService } from '@core/services/notification.service';
+import { PermissionsService } from '@core/services/permissions.service';
 import { StrategySummary, Strategy } from '@core/models';
 
 interface ActivityItem {
@@ -52,7 +54,17 @@ interface QuickStats {
           <div class="space-y-4 mb-8">
             <div class="card p-4">
               <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Saved Strategies</p>
-              <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">{{ quickStats().savedStrategies }}</p>
+              <div class="flex items-baseline justify-between">
+                <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">{{ quickStats().savedStrategies }}</p>
+                @if (!permissionsService.isPremium()) {
+                  <span class="text-xs text-surface-500">of {{ permissionsService.maxStrategies() }}</span>
+                }
+              </div>
+              @if (!permissionsService.isPremium()) {
+                <div class="w-full bg-surface-200 dark:bg-surface-700 rounded-full h-1.5 mt-2">
+                  <div class="bg-accent-500 h-1.5 rounded-full" [style.width.%]="(quickStats().savedStrategies / permissionsService.maxStrategies()) * 100"></div>
+                </div>
+              }
             </div>
             <div class="card p-4">
               <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Simulations Run</p>
@@ -66,15 +78,21 @@ interface QuickStats {
 
           <!-- Quick Actions -->
           <div class="space-y-3">
-            <a 
-              routerLink="/build" 
-              class="flex items-center justify-center space-x-2 w-full btn-primary btn-md"
+            <button 
+              (click)="onNewStrategy()"
+              class="flex items-center justify-center space-x-2 w-full btn-primary btn-md relative overflow-hidden"
+              [class.opacity-90]="!canCreateStrategy()"
             >
+              @if (!canCreateStrategy()) {
+                <div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+              }
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
               </svg>
               <span>New Strategy</span>
-            </a>
+            </button>
             <a 
               routerLink="/strategies" 
               class="flex items-center justify-center space-x-2 w-full btn-secondary btn-md"
@@ -90,23 +108,36 @@ interface QuickStats {
         <!-- Main Content -->
         <main class="flex-1 p-6 lg:p-8">
           <!-- Welcome Section -->
-          <div class="mb-8">
-            <h1 class="text-2xl lg:text-3xl font-bold text-surface-900 dark:text-surface-100 mb-2">
-              Welcome back, {{ (authService.user()?.name?.split(' ')?.[0]) || 'there' }}!
-            </h1>
-            <p class="text-surface-600 dark:text-surface-400">
-              Here's an overview of your strategies and recent activity.
-            </p>
+          <div class="mb-8 flex justify-between items-end">
+            <div>
+              <h1 class="text-2xl lg:text-3xl font-bold text-surface-900 dark:text-surface-100 mb-2">
+                Welcome back, {{ (authService.user()?.name?.split(' ')?.[0]) || 'there' }}!
+              </h1>
+              <p class="text-surface-600 dark:text-surface-400">
+                Here's an overview of your strategies and recent activity.
+              </p>
+            </div>
+            @if (!permissionsService.isPremium()) {
+              <button (click)="openPremiumDialog('Pro Features')" class="hidden md:flex items-center px-4 py-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span class="font-bold">Upgrade to Pro</span>
+              </button>
+            }
           </div>
 
           <!-- Mobile Quick Actions -->
           <div class="lg:hidden flex space-x-3 mb-8">
-            <a routerLink="/build" class="flex-1 btn-primary btn-md text-center">
+            <button (click)="onNewStrategy()" class="flex-1 btn-primary btn-md text-center relative overflow-hidden">
+              @if (!canCreateStrategy()) {
+                <div class="absolute inset-0 bg-black/10 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-white drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+              }
               <svg class="w-5 h-5 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
               </svg>
               New Strategy
-            </a>
+            </button>
             <a routerLink="/strategies" class="flex-1 btn-secondary btn-md text-center">
               View All
             </a>
@@ -144,12 +175,12 @@ interface QuickStats {
                 </div>
                 <h3 class="text-lg font-medium text-surface-900 dark:text-surface-100 mb-2">No strategies yet</h3>
                 <p class="text-surface-600 dark:text-surface-400 mb-6">Create your first strategy to start backtesting.</p>
-                <a routerLink="/build" class="btn-primary btn-md inline-flex">
+                <button (click)="onNewStrategy()" class="btn-primary btn-md inline-flex">
                   <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                   </svg>
                   Create Strategy
-                </a>
+                </button>
               </div>
             } @else {
               <div class="grid md:grid-cols-2 gap-6">
@@ -222,18 +253,33 @@ interface QuickStats {
                   </div>
                   <div>
                     <p class="font-semibold text-surface-900 dark:text-surface-100">{{ authService.user()?.name }}</p>
-                    <p class="text-sm text-surface-500 dark:text-surface-400">{{ authService.user()?.email }}</p>
+                    <div class="flex items-center space-x-2">
+                        <p class="text-sm text-surface-500 dark:text-surface-400">{{ authService.user()?.email }}</p>
+                        @if (permissionsService.isPremium()) {
+                            <span class="px-1.5 py-0.5 bg-accent-100 text-accent-700 text-[10px] font-bold rounded uppercase">Pro</span>
+                        } @else {
+                            <span class="px-1.5 py-0.5 bg-surface-200 text-surface-600 text-[10px] font-bold rounded uppercase">Free</span>
+                        }
+                    </div>
                   </div>
                 </div>
 
                 <div class="space-y-4">
                   <div class="flex justify-between">
                     <span class="text-surface-600 dark:text-surface-400">Plan</span>
-                    <span class="font-medium text-surface-900 dark:text-surface-100">Free Tier</span>
+                    <span class="font-medium text-surface-900 dark:text-surface-100">{{ permissionsService.isPremium() ? 'Pro Tier' : 'Free Tier' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-surface-600 dark:text-surface-400">Strategies</span>
+                    <span class="font-medium text-surface-900 dark:text-surface-100">
+                        {{ quickStats().savedStrategies }} / {{ permissionsService.isPremium() ? '∞' : permissionsService.maxStrategies() }}
+                    </span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-surface-600 dark:text-surface-400">Iterations/Sim</span>
-                    <span class="font-medium text-surface-900 dark:text-surface-100">10,000</span>
+                    <span class="font-medium text-surface-900 dark:text-surface-100">
+                        {{ permissionsService.maxIterations() | number }}
+                    </span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-surface-600 dark:text-surface-400">Member Since</span>
@@ -243,12 +289,20 @@ interface QuickStats {
                   </div>
                 </div>
 
-                <button 
-                  disabled
-                  class="w-full mt-6 btn-secondary btn-md opacity-50 cursor-not-allowed"
-                >
-                  Upgrade Plan (Coming Soon)
-                </button>
+                @if (!permissionsService.isPremium()) {
+                    <button 
+                      (click)="openPremiumDialog('Pro Features')"
+                      class="w-full mt-6 btn-primary btn-md bg-gradient-to-r from-amber-400 to-orange-500 border-none shadow-lg hover:shadow-xl"
+                    >
+                      Upgrade to Pro
+                    </button>
+                } @else {
+                    <button 
+                      class="w-full mt-6 btn-secondary btn-md"
+                    >
+                      Manage Subscription
+                    </button>
+                }
               </div>
             </section>
           </div>
@@ -260,6 +314,7 @@ interface QuickStats {
 export class DashboardComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   readonly strategyService = inject(StrategyService);
+  readonly permissionsService = inject(PermissionsService);
   private readonly simulationService = inject(SimulationService);
   private readonly queueService = inject(SimulationQueueService);
   private readonly notificationService = inject(NotificationService);
@@ -296,7 +351,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.recentStrategies.set(response.data);
         
         // Update quick stats
-        // FIX: Check latestResultId instead of hasResults
         const completedCount = response.data.filter(s => !!s.latestResultId).length;
         
         this.quickStats.update(stats => ({
@@ -329,37 +383,54 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private generateActivityItems(strategies: StrategySummary[]): void {
     const items: ActivityItem[] = strategies.map(s => ({
       id: s.id,
-      type: s.latestResultId ? 'completed' : 'updated', // FIX: Check latestResultId
+      type: s.latestResultId ? 'completed' : 'updated',
       strategyName: s.name,
       timestamp: s.updatedAt,
     }));
     this.activityItems.set(items.slice(0, 5));
   }
 
+  canCreateStrategy(): boolean {
+    return this.permissionsService.canCreateStrategy(this.quickStats().savedStrategies);
+  }
+
+  onNewStrategy(): void {
+    if (this.canCreateStrategy()) {
+      this.router.navigate(['/build']);
+    } else {
+      this.openPremiumDialog('Strategy Limit Reached');
+    }
+  }
+
+  openPremiumDialog(feature: string): void {
+    this.dialog.open(PremiumDialogComponent, {
+      width: '450px',
+      data: {
+        featureName: feature,
+        description: this.permissionsService.getLockReason('strategy_limit')
+      }
+    });
+  }
+
   onRunStrategy(strategy: StrategySummary): void {
-    // 1. Fetch full strategy details first
     this.strategyService.loadStrategy(strategy.id).subscribe({
       next: (fullStrategy) => {
-        // 2. Open Progress Dialog
         const dialogRef = this.dialog.open(SimulationProgressDialogComponent, {
           disableClose: true,
           width: '500px',
           data: { strategy: fullStrategy },
         });
 
-        // 3. Handle Completion
         dialogRef.afterClosed().subscribe(result => {
           if (result?.success) {
             this.notificationService.success('Simulation completed successfully!');
             this.router.navigate(['/results', strategy.id]);
           } else if (result?.minimized) {
-            // Register with queue for background tracking
             this.queueService.registerRunning(fullStrategy as Strategy);
             this.notificationService.info('Simulation running in background. Check the indicator in the header.');
           } else if (result?.cancelled) {
             this.notificationService.info('Simulation cancelled.');
           }
-          // Refresh dashboard data regardless
           this.loadDashboardData();
         });
       },
@@ -370,7 +441,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onEditStrategy(strategy: StrategySummary): void {
-    // Navigate to strategy builder with strategy loaded
     window.location.href = `/build?edit=${strategy.id}`;
   }
 

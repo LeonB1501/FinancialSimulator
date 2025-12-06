@@ -5,3 +5,5 @@ export * from './simulation.service';
 export * from './simulation-queue.service';
 export * from './notification.service';
 export * from './theme.service';
+export * from './permissions.service';
+export * from './dsl-validation.service';

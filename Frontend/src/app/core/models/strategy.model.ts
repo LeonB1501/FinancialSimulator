@@ -10,11 +10,18 @@ export enum SimulationMode {
 
 export enum StochasticModel {
   Heston = 'heston',
-  GBM = 'gbm',
+  // Updated to match the PermissionsService check logic if we want to be verbose, 
+  // OR we update the service. Let's keep the short names here as they are used in JSON.
+  GBM = 'gbm', 
   GARCH = 'garch',
   BlockedBootstrap = 'blocked_bootstrap',
   RegimeSwitching = 'regime_switching',
 }
+
+// Helper for the Permissions Service to map "GeometricBrownianMotion" if needed,
+// but for now, we will update the PermissionsService in the next step if this file was already correct.
+// Actually, let's keep this file as is (Standard) and I will correct the PermissionsService 
+// in the previous block to use 'GBM' instead of 'GeometricBrownianMotion'.
 
 export enum Granularity {
   Daily = 'daily',

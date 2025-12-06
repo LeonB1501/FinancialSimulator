@@ -1,6 +1,9 @@
-import { Component, Output, EventEmitter, computed, input } from '@angular/core';
+import { Component, Output, EventEmitter, computed, input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
+import { PermissionsService } from '@core/services/permissions.service';
+import { PremiumDialogComponent } from '@shared/components/premium-dialog/premium-dialog.component';
 import { 
   StrategyDraft, 
   SimulationMode, 
@@ -254,9 +257,17 @@ import {
                 <input 
                   type="number" 
                   class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100"
+                  [class.border-red-500]="isIterationLimitExceeded()"
                   [value]="simulationConfig().iterations"
                   (input)="updateConfigParam('iterations', $event)"
                 >
+                @if (isIterationLimitExceeded()) {
+                  <p class="text-xs text-red-500 mt-1 flex items-center">
+                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    Free tier limited to {{ permissions.maxIterations() | number }} iterations.
+                    <button (click)="openPremiumDialog()" class="underline ml-1 font-medium hover:text-red-700">Upgrade</button>
+                  </p>
+                }
                 <div class="flex flex-wrap gap-2 mt-2">
                   @for (preset of iterationPresets; track preset) {
                     <button
@@ -332,6 +343,9 @@ export class SimulationParamsComponent {
   @Output() scenarioChanged = new EventEmitter<AccumulationScenario | RetirementScenario>();
   @Output() configChanged = new EventEmitter<SimulationConfig>();
 
+  readonly permissions = inject(PermissionsService);
+  private readonly dialog = inject(MatDialog);
+
   readonly SimulationMode = SimulationMode;
   readonly Granularity = Granularity;
   readonly iterationPresets = [1000, 5000, 10000, 50000, 100000];
@@ -355,11 +369,6 @@ export class SimulationParamsComponent {
     const years = scenario.timelineYears;
     const lump = scenario.initialLumpSum;
 
-    // Geometric Series Sum: S = a * (1 - r^n) / (1 - r)
-    // Here, 'a' is annual contribution (12 * monthly)
-    // 'r' is (1 + growthRate)
-    // 'n' is years
-
     if (years <= 0) return lump;
 
     let totalContrib = 0;
@@ -368,7 +377,6 @@ export class SimulationParamsComponent {
     } else {
         const annualBase = monthly * 12;
         const growthFactor = 1 + r;
-        // Sum of geometric series: a * (r^n - 1) / (r - 1)
         totalContrib = annualBase * (Math.pow(growthFactor, years) - 1) / r;
     }
 
@@ -393,6 +401,10 @@ export class SimulationParamsComponent {
     if (totalMs < 1000) return '< 1 second';
     if (totalMs < 60000) return `~${Math.round(totalMs / 1000)} seconds`;
     return `~${Math.round(totalMs / 60000)} minutes`;
+  });
+
+  isIterationLimitExceeded = computed(() => {
+    return !this.permissions.canRunIterations(this.simulationConfig().iterations);
   });
 
   formatNumber(value: number): string {
@@ -472,6 +484,16 @@ export class SimulationParamsComponent {
         riskFreeRate: value / 100,
       });
     }
+  }
+
+  openPremiumDialog() {
+    this.dialog.open(PremiumDialogComponent, {
+      width: '450px',
+      data: {
+        featureName: 'High Precision Simulations',
+        description: this.permissions.getLockReason('iterations')
+      }
+    });
   }
 
   getGranularityHint(): string {

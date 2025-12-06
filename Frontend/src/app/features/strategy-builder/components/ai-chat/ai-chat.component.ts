@@ -1,14 +1,17 @@
 import { Component, EventEmitter, Input, Output, inject, signal, ViewChild, ElementRef, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import { AiService, ChatMessage, AiContext } from '@core/services/ai.service';
+import { PermissionsService } from '@core/services/permissions.service';
+import { PremiumDialogComponent } from '@shared/components/premium-dialog/premium-dialog.component';
 
 @Component({
   selector: 'qs-ai-chat',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="flex flex-col h-full bg-white dark:bg-surface-900 border-l border-surface-200 dark:border-surface-700 shadow-xl">
+    <div class="flex flex-col h-full bg-white dark:bg-surface-900 border-l border-surface-200 dark:border-surface-700 shadow-xl relative">
       <!-- Header -->
       <div class="flex items-center justify-between p-4 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
         <div class="flex items-center space-x-2">
@@ -72,19 +75,32 @@ import { AiService, ChatMessage, AiContext } from '@core/services/ai.service';
       </div>
 
       <!-- Input Area -->
-      <div class="p-4 border-t border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900">
+      <div class="p-4 border-t border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 relative">
+        
+        <!-- Premium Lock Overlay -->
+        @if (!permissions.canUseAiAssistant()) {
+          <div class="absolute inset-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center p-4">
+            <div class="flex items-center space-x-2 mb-2">
+              <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <span class="font-bold text-surface-900 dark:text-surface-100">Nanci AI is Locked</span>
+            </div>
+            <p class="text-xs text-surface-600 dark:text-surface-400 text-center mb-3">Upgrade to Pro to get AI-powered strategy generation.</p>
+            <button (click)="openPremiumDialog()" class="btn-primary btn-sm w-full shadow-lg">Unlock Nanci</button>
+          </div>
+        }
+
         <div class="flex items-center space-x-2">
           <input 
             type="text" 
             [(ngModel)]="currentInput"
             (keyup.enter)="sendMessage()"
-            [disabled]="isStreaming()"
+            [disabled]="isStreaming() || !permissions.canUseAiAssistant()"
             placeholder="Ask Nanci..."
             class="flex-1 input bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-surface-700 h-10 text-sm"
           >
           <button 
             (click)="sendMessage()"
-            [disabled]="!currentInput.trim() || isStreaming()"
+            [disabled]="!currentInput.trim() || isStreaming() || !permissions.canUseAiAssistant()"
             class="btn-primary p-2 rounded-lg disabled:opacity-50"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
@@ -100,7 +116,6 @@ import { AiService, ChatMessage, AiContext } from '@core/services/ai.service';
 })
 export class AiChatComponent {
   @Input() currentCode = '';
-  // NEW: Input for strategy context
   @Input() context: AiContext = { 
     mode: '', model: '', indices: [], parameters: {} 
   }; 
@@ -109,6 +124,8 @@ export class AiChatComponent {
   @Output() codeGenerated = new EventEmitter<string>();
 
   aiService = inject(AiService);
+  readonly permissions = inject(PermissionsService);
+  private readonly dialog = inject(MatDialog);
   
   history = signal<ChatMessage[]>([]);
   currentInput = '';
@@ -117,7 +134,6 @@ export class AiChatComponent {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
   constructor() {
-    // Auto-scroll effect when streaming content changes
     effect(() => {
       this.aiService.streamingContent(); 
       this.scrollToBottom();
@@ -127,10 +143,14 @@ export class AiChatComponent {
   async sendMessage() {
     if (!this.currentInput.trim() || this.isStreaming()) return;
 
+    if (!this.permissions.canUseAiAssistant()) {
+      this.openPremiumDialog();
+      return;
+    }
+
     const userMsg = this.currentInput;
     this.currentInput = '';
     
-    // Add user message to UI immediately
     this.history.update(h => [...h, { role: 'user', content: userMsg }]);
     this.scrollToBottom();
 
@@ -139,7 +159,6 @@ export class AiChatComponent {
     try {
       let finalMessage = '';
       
-      // FIXED: Now passing 4 arguments to streamMessage
       const stream = this.aiService.streamMessage(
         userMsg, 
         this.currentCode, 
@@ -150,17 +169,13 @@ export class AiChatComponent {
       for await (const chunk of stream) {
         if (chunk.type === 'token') {
           finalMessage += chunk.content;
-          // Note: The UI binds directly to aiService.streamingContent() for the live effect
         } 
         else if (chunk.type === 'code') {
-          // Code update received!
           this.codeGenerated.emit(chunk.content);
-          // We can optionally add a system note to chat
           finalMessage += '\n\n[Code updated in editor]';
         }
       }
 
-      // Finalize history with the complete message
       this.history.update(h => [...h, { role: 'assistant', content: finalMessage }]);
 
     } catch (err) {
@@ -169,6 +184,16 @@ export class AiChatComponent {
     } finally {
       this.isStreaming.set(false);
     }
+  }
+
+  openPremiumDialog() {
+    this.dialog.open(PremiumDialogComponent, {
+      width: '450px',
+      data: {
+        featureName: 'AI Strategy Assistant',
+        description: this.permissions.getLockReason('ai')
+      }
+    });
   }
 
   private scrollToBottom() {

@@ -2,8 +2,10 @@ import { Component, Output, EventEmitter, signal, computed, input, inject, OnIni
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatDialogModule } from '@angular/material/dialog';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { StrategyService } from '@core/services/strategy.service';
+import { PermissionsService } from '@core/services/permissions.service';
+import { PremiumDialogComponent } from '@shared/components/premium-dialog/premium-dialog.component';
 import { 
   StrategyDraft, 
   Index, 
@@ -49,8 +51,17 @@ import {
               (click)="selectModel(model.id)"
               [disabled]="isModelDisabled(model.id)"
               [class]="getModelCardClass(model.id)"
-              class="bg-white dark:bg-surface-800 rounded-2xl border p-4 text-center transition-all duration-200 relative group"
+              class="bg-white dark:bg-surface-800 rounded-2xl border p-4 text-center transition-all duration-200 relative group overflow-hidden"
             >
+              <!-- Premium Lock Overlay -->
+              @if (!permissions.canUseModel(model.id)) {
+                <div class="absolute top-2 right-2">
+                  <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                </div>
+              }
+
               <div class="text-2xl mb-2" [class.opacity-50]="isModelDisabled(model.id)">{{ model.icon }}</div>
               <p class="font-medium text-sm" [class]="isModelDisabled(model.id) ? 'text-surface-400 dark:text-surface-500' : 'text-surface-900 dark:text-surface-100'">
                 {{ model.name }}
@@ -78,10 +89,18 @@ import {
       <section class="mb-10">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100">Select Indices</h2>
-          <button (click)="openCustomTickerDialog()" class="text-sm text-accent-600 dark:text-accent-400 font-medium hover:text-accent-700 dark:hover:text-accent-300 flex items-center">
-            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-            </svg>
+          
+          <!-- Custom Ticker Button (Locked) -->
+          <button 
+            (click)="openCustomTickerDialog()" 
+            class="text-sm font-medium flex items-center transition-colors"
+            [class]="permissions.isPremium() ? 'text-accent-600 dark:text-accent-400 hover:text-accent-700 dark:hover:text-accent-300' : 'text-surface-400 dark:text-surface-500 hover:text-amber-600 dark:hover:text-amber-400'"
+          >
+            @if (!permissions.isPremium()) {
+              <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            } @else {
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            }
             Add Custom Ticker
           </button>
         </div>
@@ -286,7 +305,24 @@ import {
       @if (selectedIndices().length > 1) {
         <section>
           <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Correlation Matrix</h2>
-          <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 overflow-x-auto shadow-soft dark:shadow-none">
+          <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 overflow-x-auto shadow-soft dark:shadow-none relative">
+            
+            <!-- Premium Lock Overlay for Correlation -->
+            @if (!permissions.isPremium()) {
+              <div class="absolute inset-0 bg-white/60 dark:bg-surface-900/60 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center">
+                <div class="bg-white dark:bg-surface-800 p-6 rounded-2xl shadow-xl border border-surface-200 dark:border-surface-700 text-center max-w-sm">
+                  <div class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg class="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                  </div>
+                  <h3 class="font-bold text-surface-900 dark:text-surface-100 mb-1">Custom Correlations Locked</h3>
+                  <p class="text-sm text-surface-500 dark:text-surface-400 mb-4">Upgrade to Pro to edit the correlation matrix manually.</p>
+                  <button (click)="openPremiumDialog('Correlation Matrix')" class="btn-primary btn-sm w-full">Unlock</button>
+                </div>
+              </div>
+            }
+
             <table class="w-full">
               <thead>
                 <tr>
@@ -348,6 +384,8 @@ import {
 })
 export class ModelConfigComponent implements OnInit {
   private strategyService = inject(StrategyService);
+  readonly permissions = inject(PermissionsService);
+  private readonly dialog = inject(MatDialog);
 
   draft = input.required<StrategyDraft>();
   
@@ -386,7 +424,6 @@ export class ModelConfigComponent implements OnInit {
   });
 
   ngOnInit() {
-    // FIX: Initialize the selected model from the draft to prevent resetting to default
     const existingIndices = this.draft().indices;
     if (existingIndices && existingIndices.length > 0) {
       this.selectedModelType.set(existingIndices[0].model);
@@ -433,6 +470,11 @@ export class ModelConfigComponent implements OnInit {
 
   selectModel(model: StochasticModel): void {
     if (this.isModelDisabled(model)) return;
+
+    if (!this.permissions.canUseModel(model)) {
+      this.openPremiumDialog(this.getModelName(model) + ' Model');
+      return;
+    }
 
     this.selectedModelType.set(model);
     
@@ -566,7 +608,6 @@ export class ModelConfigComponent implements OnInit {
   getGARCHParam(index: Index, param: keyof GARCHParameters): number {
     const params = index.parameters as GARCHParameters;
     const value = params?.[param] ?? DEFAULT_GARCH_PARAMS[param];
-    // GARCH omega needs more precision (it's typically very small like 0.000002)
     return param === 'omega' ? this.formatParam(value, 6) : this.formatParam(value);
   }
 
@@ -656,8 +697,22 @@ export class ModelConfigComponent implements OnInit {
   }
   
   openCustomTickerDialog() {
+      if (!this.permissions.isPremium()) {
+        this.openPremiumDialog('Custom Tickers');
+        return;
+      }
       const dialog = document.querySelector('dialog');
       if (dialog) dialog.showModal();
+  }
+
+  openPremiumDialog(feature: string) {
+    this.dialog.open(PremiumDialogComponent, {
+      width: '450px',
+      data: {
+        featureName: feature,
+        description: this.permissions.getLockReason('model')
+      }
+    });
   }
   
   addCustomTicker(symbol: string, name: string) {

@@ -1,6 +1,9 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { MatDialog } from '@angular/material/dialog';
 import { StrategyDraft, SimulationMode } from '@core/models';
+import { PermissionsService } from '@core/services/permissions.service';
+import { PremiumDialogComponent } from '@shared/components/premium-dialog/premium-dialog.component';
 
 @Component({
   selector: 'qs-mode-selection',
@@ -22,7 +25,7 @@ import { StrategyDraft, SimulationMode } from '@core/models';
         <button
           (click)="selectMode(SimulationMode.Accumulation)"
           [class]="getModeCardClass(SimulationMode.Accumulation)"
-          class="bg-white dark:bg-surface-800 rounded-2xl border p-8 text-left transition-all duration-200"
+          class="bg-white dark:bg-surface-800 rounded-2xl border p-8 text-left transition-all duration-200 relative group"
         >
           <div class="flex items-start justify-between mb-6">
             <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center">
@@ -68,7 +71,7 @@ import { StrategyDraft, SimulationMode } from '@core/models';
         <button
           (click)="selectMode(SimulationMode.Retirement)"
           [class]="getModeCardClass(SimulationMode.Retirement)"
-          class="bg-white dark:bg-surface-800 rounded-2xl border p-8 text-left transition-all duration-200"
+          class="bg-white dark:bg-surface-800 rounded-2xl border p-8 text-left transition-all duration-200 relative group"
         >
           <div class="flex items-start justify-between mb-6">
             <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
@@ -110,12 +113,23 @@ import { StrategyDraft, SimulationMode } from '@core/models';
           </ul>
         </button>
 
-        <!-- Historic Backtest Mode -->
+        <!-- Historic Backtest Mode (LOCKED) -->
         <button
           (click)="selectMode(SimulationMode.Historic)"
           [class]="getModeCardClass(SimulationMode.Historic)"
-          class="bg-white dark:bg-surface-800 rounded-2xl border p-8 text-left transition-all duration-200"
+          class="bg-white dark:bg-surface-800 rounded-2xl border p-8 text-left transition-all duration-200 relative group overflow-hidden"
         >
+          <!-- Lock Overlay -->
+          @if (!permissions.canUseHistoricData()) {
+            <div class="absolute top-4 right-4 z-10">
+              <div class="w-8 h-8 bg-amber-100 dark:bg-amber-900/50 rounded-full flex items-center justify-center">
+                <svg class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+              </div>
+            </div>
+          }
+
           <div class="flex items-start justify-between mb-6">
             <div class="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center">
               <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,9 +177,22 @@ export class ModeSelectionComponent {
   @Input({ required: true }) draft!: StrategyDraft;
   @Output() modeSelected = new EventEmitter<SimulationMode>();
 
+  readonly permissions = inject(PermissionsService);
+  private readonly dialog = inject(MatDialog);
+
   readonly SimulationMode = SimulationMode;
 
   selectMode(mode: SimulationMode): void {
+    if (mode === SimulationMode.Historic && !this.permissions.canUseHistoricData()) {
+      this.dialog.open(PremiumDialogComponent, {
+        width: '450px',
+        data: {
+          featureName: 'Historic Backtesting',
+          description: this.permissions.getLockReason('historic')
+        }
+      });
+      return;
+    }
     this.modeSelected.emit(mode);
   }
 
