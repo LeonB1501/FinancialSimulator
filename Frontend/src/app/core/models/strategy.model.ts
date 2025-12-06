@@ -5,6 +5,7 @@
 export enum SimulationMode {
   Accumulation = 'accumulation',
   Retirement = 'retirement',
+  Historic = 'historic',
 }
 
 export enum StochasticModel {
@@ -130,12 +131,20 @@ export interface RetirementScenario {
   monthlyWithdrawal: number;
   inflationRate: number;
   timelineYears: number;
-  // NEW: Pension fields
+  // Pension fields
   pensionStartYear: number; // Years from now until pension starts
   monthlyPension: number;   // Base pension amount
 }
 
-export type Scenario = AccumulationScenario | RetirementScenario;
+export interface HistoricScenario {
+  initialCapital: number;
+  monthlyContribution: number;
+  startDate: string;  // ISO date string
+  endDate: string;    // ISO date string
+  benchmarkTicker: string;
+}
+
+export type Scenario = AccumulationScenario | RetirementScenario | HistoricScenario;
 
 export interface SimulationConfig {
   iterations: number;
@@ -258,6 +267,14 @@ export const DEFAULT_RETIREMENT_SCENARIO: RetirementScenario = {
   timelineYears: 30,
   pensionStartYear: 0, // Default: starts immediately
   monthlyPension: 0    // Default: no pension
+};
+
+export const DEFAULT_HISTORIC_SCENARIO: HistoricScenario = {
+  initialCapital: 100000,
+  monthlyContribution: 0,
+  startDate: '2010-01-01',
+  endDate: '2020-01-01',
+  benchmarkTicker: 'spy',
 };
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {

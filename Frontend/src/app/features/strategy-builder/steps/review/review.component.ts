@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -20,6 +20,7 @@ import {
     FormsModule,
     MatInputModule,
     MatFormFieldModule,
+    DatePipe
   ],
   template: `
     <div class="max-w-4xl">
@@ -94,7 +95,7 @@ import {
                     <dt class="text-sm text-surface-500 dark:text-surface-400">Timeline</dt>
                     <dd class="font-medium text-surface-900 dark:text-surface-200">{{ accumulationScenario().timelineYears }} years</dd>
                   </div>
-                } @else {
+                } @else if (draft.mode === SimulationMode.Retirement) {
                   <div>
                     <dt class="text-sm text-surface-500 dark:text-surface-400">Initial Portfolio</dt>
                     <dd class="font-medium text-surface-900 dark:text-surface-200">\${{ formatNumber(retirementScenario().initialPortfolio) }}</dd>
@@ -110,6 +111,15 @@ import {
                   <div>
                     <dt class="text-sm text-surface-500 dark:text-surface-400">Timeline</dt>
                     <dd class="font-medium text-surface-900 dark:text-surface-200">{{ retirementScenario().timelineYears }} years</dd>
+                  </div>
+                } @else if (draft.mode === SimulationMode.Historic) {
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Initial Capital</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">\${{ formatNumber(historicScenario().initialCapital) }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Monthly Contribution</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">\${{ formatNumber(historicScenario().monthlyContribution) }}</dd>
                   </div>
                 }
               </dl>
@@ -175,7 +185,15 @@ import {
               </div>
               <div>
                 <h3 class="font-semibold text-surface-900 dark:text-surface-100">Simulation Settings</h3>
-                <p class="text-sm text-surface-500 dark:text-surface-400">{{ formatNumber(draft.simulationConfig?.iterations || 10000) }} iterations, {{ granularityLabel() }}</p>
+                @if (draft.mode === SimulationMode.Historic) {
+                  <p class="text-sm text-surface-500 dark:text-surface-400">
+                    Historic Data • Single Pass
+                  </p>
+                } @else {
+                  <p class="text-sm text-surface-500 dark:text-surface-400">
+                    {{ formatNumber(draft.simulationConfig?.iterations || 10000) }} iterations, {{ granularityLabel() }}
+                  </p>
+                }
               </div>
             </div>
             <svg 
@@ -188,20 +206,42 @@ import {
           </button>
           @if (expandedSections().has('simulation')) {
             <div class="px-6 pb-6 border-t border-surface-100 dark:border-surface-700 pt-4">
-              <dl class="grid grid-cols-3 gap-4">
-                <div>
-                  <dt class="text-sm text-surface-500 dark:text-surface-400">Iterations</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-200">{{ formatNumber(draft.simulationConfig?.iterations || 10000) }}</dd>
-                </div>
-                <div>
-                  <dt class="text-sm text-surface-500 dark:text-surface-400">Granularity</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-200">{{ granularityLabel() }}</dd>
-                </div>
-                <div>
-                  <dt class="text-sm text-surface-500 dark:text-surface-400">Risk-Free Rate</dt>
-                  <dd class="font-medium text-surface-900 dark:text-surface-200">{{ ((draft.simulationConfig?.riskFreeRate || 0.04) * 100).toFixed(1) }}%</dd>
-                </div>
-              </dl>
+              @if (draft.mode === SimulationMode.Historic) {
+                <dl class="grid grid-cols-2 gap-4">
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Data Source</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">Real Market History</dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Benchmark</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200 uppercase">
+                      {{ historicScenario().benchmarkTicker || 'SPY' }}
+                    </dd>
+                  </div>
+                  <div class="col-span-2">
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Date Range</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">
+                      {{ historicScenario().startDate | date:'mediumDate' }} — 
+                      {{ historicScenario().endDate | date:'mediumDate' }}
+                    </dd>
+                  </div>
+                </dl>
+              } @else {
+                <dl class="grid grid-cols-3 gap-4">
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Iterations</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">{{ formatNumber(draft.simulationConfig?.iterations || 10000) }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Granularity</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">{{ granularityLabel() }}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-sm text-surface-500 dark:text-surface-400">Risk-Free Rate</dt>
+                    <dd class="font-medium text-surface-900 dark:text-surface-200">{{ ((draft.simulationConfig?.riskFreeRate || 0.04) * 100).toFixed(1) }}%</dd>
+                  </div>
+                </dl>
+              }
             </div>
           }
         </div>
@@ -256,8 +296,13 @@ import {
             </div>
           </div>
           <div class="text-right">
-            <p class="text-sm text-primary-700 dark:text-primary-300">{{ formatNumber(draft.simulationConfig?.iterations || 10000) }} iterations</p>
-            <p class="text-sm text-primary-700 dark:text-primary-300">{{ granularityLabel() }} granularity</p>
+            @if (draft.mode === SimulationMode.Historic) {
+              <p class="text-sm text-primary-700 dark:text-primary-300">Single Pass</p>
+              <p class="text-sm text-primary-700 dark:text-primary-300">Daily Data</p>
+            } @else {
+              <p class="text-sm text-primary-700 dark:text-primary-300">{{ formatNumber(draft.simulationConfig?.iterations || 10000) }} iterations</p>
+              <p class="text-sm text-primary-700 dark:text-primary-300">{{ granularityLabel() }} granularity</p>
+            }
           </div>
         </div>
       </div>
@@ -286,7 +331,14 @@ export class ReviewComponent {
     this.nameChanged.emit(value);
   }
 
-  modeLabel = () => this.draft.mode === SimulationMode.Accumulation ? 'Accumulation' : 'Retirement';
+  modeLabel = () => {
+    switch(this.draft.mode) {
+      case SimulationMode.Accumulation: return 'Accumulation';
+      case SimulationMode.Retirement: return 'Retirement';
+      case SimulationMode.Historic: return 'Historic Backtest';
+      default: return 'Unknown';
+    }
+  };
 
   modelLabel = () => {
     const model = this.draft.indices?.[0]?.model;
@@ -315,12 +367,17 @@ export class ReviewComponent {
 
   accumulationScenario = () => (this.draft.scenario as AccumulationScenario) || { initialLumpSum: 0, monthlyContribution: 0, targetWealth: 0, timelineYears: 0 };
   retirementScenario = () => (this.draft.scenario as RetirementScenario) || { initialPortfolio: 0, monthlyWithdrawal: 0, inflationRate: 0, timelineYears: 0 };
+  historicScenario = () => (this.draft.scenario as any) || { initialCapital: 0, monthlyContribution: 0, startDate: '', endDate: '', benchmarkTicker: 'SPY' };
 
   formatNumber(value: number): string {
     return new Intl.NumberFormat('en-US').format(value);
   }
 
   estimatedTime = () => {
+    if (this.draft.mode === SimulationMode.Historic) {
+      return '~2 seconds';
+    }
+
     const iterations = this.draft.simulationConfig?.iterations || 10000;
     const granularity = this.draft.simulationConfig?.granularity || Granularity.Weekly;
     

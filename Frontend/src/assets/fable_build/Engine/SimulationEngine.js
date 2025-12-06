@@ -22,7 +22,7 @@ export function compileStrategy(dslCode, validTickers) {
 
 function runSingleIteration(program, configWithWarmup, warmupDays, initialCash, baseSeed, iterationIndex) {
     const rawResult = evaluate(iterationIndex, program, configWithWarmup, generatePaths(configWithWarmup, baseSeed + iterationIndex), initialCash);
-    return new SimulationRunResult(rawResult.RunId, ((warmupDays > 0) && (rawResult.EquityCurve.length > warmupDays)) ? rawResult.EquityCurve.slice(warmupDays, rawResult.EquityCurve.length) : rawResult.EquityCurve, rawResult.FinalState);
+    return new SimulationRunResult(rawResult.RunId, ((warmupDays > 0) && (rawResult.EquityCurve.length > warmupDays)) ? rawResult.EquityCurve.slice(warmupDays, rawResult.EquityCurve.length) : rawResult.EquityCurve, rawResult.FinalState, rawResult.TransactionHistory);
 }
 
 /**

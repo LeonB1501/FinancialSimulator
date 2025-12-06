@@ -15,6 +15,7 @@ import {
   Scenario,
   DEFAULT_ACCUMULATION_SCENARIO,
   DEFAULT_RETIREMENT_SCENARIO,
+  DEFAULT_HISTORIC_SCENARIO,
   DEFAULT_SIMULATION_CONFIG,
   AVAILABLE_INDICES,
   StrategyStatus,
@@ -446,9 +447,21 @@ export class StrategyService {
   }
 
   setDraftMode(mode: SimulationMode): void {
-    const scenario = mode === SimulationMode.Accumulation 
-      ? DEFAULT_ACCUMULATION_SCENARIO 
-      : DEFAULT_RETIREMENT_SCENARIO;
+    let scenario: Scenario;
+    
+    switch (mode) {
+      case SimulationMode.Accumulation:
+        scenario = DEFAULT_ACCUMULATION_SCENARIO;
+        break;
+      case SimulationMode.Retirement:
+        scenario = DEFAULT_RETIREMENT_SCENARIO;
+        break;
+      case SimulationMode.Historic:
+        scenario = DEFAULT_HISTORIC_SCENARIO;
+        break;
+      default:
+        scenario = DEFAULT_ACCUMULATION_SCENARIO;
+    }
     
     this._draft.update(current => ({
       ...current,
@@ -545,5 +558,23 @@ export class StrategyService {
 
   getAvailableIndices(): Index[] {
     return AVAILABLE_INDICES;
+  }
+
+  // Cached observable for available tickers
+  private _availableTickers$: Observable<string[]> | null = null;
+
+  getAvailableTickers(): Observable<string[]> {
+    if (!this._availableTickers$) {
+      this._availableTickers$ = this.api.get<string[]>('/MarketData/tickers').pipe(
+        map(tickers => tickers.map(t => t.toUpperCase())),
+        shareReplay(1),
+        catchError(err => {
+          console.error('Failed to fetch available tickers', err);
+          // Fallback to empty array if API fails
+          return of([]);
+        })
+      );
+    }
+    return this._availableTickers$;
   }
 }

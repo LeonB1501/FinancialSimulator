@@ -1,6 +1,6 @@
 import { FSharpException } from "../fable_modules/fable-library-js.4.27.0/Types.js";
 import { class_type } from "../fable_modules/fable-library-js.4.27.0/Reflection.js";
-import { append, singleton, filter, fold, map, updateAt, tryFindIndex, head, tryFind, tail, isEmpty, cons, empty } from "../fable_modules/fable-library-js.4.27.0/List.js";
+import { singleton, append, filter, fold, map, updateAt, tryFindIndex, head, tryFind, tail, isEmpty, cons, empty } from "../fable_modules/fable-library-js.4.27.0/List.js";
 import { ofList, FSharpMap__Add, FSharpMap__ContainsKey, FSharpMap__TryFind, empty as empty_1 } from "../fable_modules/fable-library-js.4.27.0/Map.js";
 import { equals, comparePrimitives } from "../fable_modules/fable-library-js.4.27.0/Util.js";
 import { ConcreteOption, SellParams, BuyParams, PrimitiveTrade, RebalanceParams, ResolvedInstrument, Value, MarketDataPoint, EvaluationState, Portfolio } from "./EngineTypes.js";
@@ -29,11 +29,11 @@ export function emptyState(initialCash, riskFreeRate) {
         Compare: comparePrimitives,
     })), empty(), empty_1({
         Compare: comparePrimitives,
-    }), riskFreeRate);
+    }), riskFreeRate, empty());
 }
 
 export function pushScope(state) {
-    return new EvaluationState(state.CurrentDay, state.Portfolio, cons(empty(), state.ScopeStack), state.GlobalScope, state.RiskFreeRate);
+    return new EvaluationState(state.CurrentDay, state.Portfolio, cons(empty(), state.ScopeStack), state.GlobalScope, state.RiskFreeRate, state.TransactionHistory);
 }
 
 export function popScope(state) {
@@ -42,7 +42,7 @@ export function popScope(state) {
         throw new Error("FATAL: Pop from empty scope stack");
     }
     else {
-        return new EvaluationState(state.CurrentDay, state.Portfolio, tail(matchValue), state.GlobalScope, state.RiskFreeRate);
+        return new EvaluationState(state.CurrentDay, state.Portfolio, tail(matchValue), state.GlobalScope, state.RiskFreeRate, state.TransactionHistory);
     }
 }
 
@@ -82,7 +82,7 @@ export function defineLocal(id, v, state) {
         throw new Error("FATAL: Cannot define local variable without a scope.");
     }
     else {
-        return new EvaluationState(state.CurrentDay, state.Portfolio, cons(cons([id, v], head(matchValue)), tail(matchValue)), state.GlobalScope, state.RiskFreeRate);
+        return new EvaluationState(state.CurrentDay, state.Portfolio, cons(cons([id, v], head(matchValue)), tail(matchValue)), state.GlobalScope, state.RiskFreeRate, state.TransactionHistory);
     }
 }
 
@@ -91,7 +91,7 @@ export function defineGlobal(id, v, state) {
         return state;
     }
     else {
-        return new EvaluationState(state.CurrentDay, state.Portfolio, state.ScopeStack, FSharpMap__Add(state.GlobalScope, id, v), state.RiskFreeRate);
+        return new EvaluationState(state.CurrentDay, state.Portfolio, state.ScopeStack, FSharpMap__Add(state.GlobalScope, id, v), state.RiskFreeRate, state.TransactionHistory);
     }
 }
 
@@ -115,10 +115,10 @@ export function setVar(id, v, state) {
     };
     const patternInput_1 = updateInStack(state.ScopeStack);
     if (patternInput_1[0]) {
-        return new EvaluationState(state.CurrentDay, state.Portfolio, patternInput_1[1], state.GlobalScope, state.RiskFreeRate);
+        return new EvaluationState(state.CurrentDay, state.Portfolio, patternInput_1[1], state.GlobalScope, state.RiskFreeRate, state.TransactionHistory);
     }
     else if (FSharpMap__ContainsKey(state.GlobalScope, id)) {
-        return new EvaluationState(state.CurrentDay, state.Portfolio, state.ScopeStack, FSharpMap__Add(state.GlobalScope, id, v), state.RiskFreeRate);
+        return new EvaluationState(state.CurrentDay, state.Portfolio, state.ScopeStack, FSharpMap__Add(state.GlobalScope, id, v), state.RiskFreeRate, state.TransactionHistory);
     }
     else {
         throw new InterpreterError(`Cannot 'set' an unbound variable '${id}'.`);
@@ -731,7 +731,8 @@ function interpretAction(state, history, action) {
         return state;
     }
     else {
-        return new EvaluationState(state.CurrentDay, executeTrades(trades, state.Portfolio, history, state.CurrentDay, state.RiskFreeRate), state.ScopeStack, state.GlobalScope, state.RiskFreeRate);
+        const patternInput = executeTrades(trades, state.Portfolio, history, state.CurrentDay, state.RiskFreeRate);
+        return new EvaluationState(state.CurrentDay, patternInput[0], state.ScopeStack, state.GlobalScope, state.RiskFreeRate, append(state.TransactionHistory, patternInput[1]));
     }
 }
 

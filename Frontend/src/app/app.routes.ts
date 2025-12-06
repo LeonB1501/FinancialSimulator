@@ -34,6 +34,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'results/historic/:id',
+    loadComponent: () => import('./features/results/historic-results.component').then(m => m.HistoricResultsComponent),
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: '',
   },

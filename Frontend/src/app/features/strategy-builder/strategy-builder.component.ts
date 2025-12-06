@@ -10,6 +10,8 @@ import { SimulationParamsComponent } from './steps/simulation-params/simulation-
 import { DslEditorComponent } from './steps/dsl-editor/dsl-editor.component';
 import { ReviewComponent } from './steps/review/review.component';
 import { SimulationProgressDialogComponent } from './simulation-progress-dialog/simulation-progress-dialog.component';
+import { HistoricalDataAlignerComponent } from './components/historical-data-aligner.component';
+import { HistoricalParamsComponent } from './components/historical-params.component';
 import { StrategyService } from '@core/services/strategy.service';
 import { SimulationQueueService } from '@core/services/simulation-queue.service';
 import { NotificationService } from '@core/services/notification.service';
@@ -19,6 +21,7 @@ import {
   DEFAULT_SIMULATION_CONFIG,
   Strategy,
   StrategyStatus,
+  HistoricScenario,
 } from '@core/models';
 
 interface WizardStep {
@@ -42,6 +45,8 @@ interface WizardStep {
     SimulationParamsComponent,
     DslEditorComponent,
     ReviewComponent,
+    HistoricalDataAlignerComponent,
+    HistoricalParamsComponent,
   ],
   template: `
     <qs-header />
@@ -134,35 +139,49 @@ interface WizardStep {
             
             @switch (currentStep()) {
               @case (0) {
-                <qs-mode-selection 
+                <qs-mode-selection
                   [draft]="strategyService.draft()"
                   (modeSelected)="onModeSelected($event)"
                 />
               }
               @case (1) {
-                <qs-model-config 
-                  [draft]="strategyService.draft()"
-                  (indicesChanged)="onIndicesChanged($event)"
-                  (parametersChanged)="onParametersChanged($event)"
-                  (correlationChanged)="onCorrelationChanged($event)"
-                  (tickersChanged)="onCustomTickersChanged($event)"
-                />
+                @if (isHistoricMode()) {
+                  <qs-historical-data-aligner
+                    [draft]="strategyService.draft()"
+                    (scenarioChanged)="onHistoricScenarioChanged($event)"
+                  />
+                } @else {
+                  <qs-model-config
+                    [draft]="strategyService.draft()"
+                    (indicesChanged)="onIndicesChanged($event)"
+                    (parametersChanged)="onParametersChanged($event)"
+                    (correlationChanged)="onCorrelationChanged($event)"
+                    (tickersChanged)="onCustomTickersChanged($event)"
+                  />
+                }
               }
               @case (2) {
-                <qs-simulation-params 
-                  [draft]="strategyService.draft()"
-                  (scenarioChanged)="onScenarioChanged($event)"
-                  (configChanged)="onSimulationConfigChanged($event)"
-                />
+                @if (isHistoricMode()) {
+                  <qs-historical-params
+                    [draft]="strategyService.draft()"
+                    (scenarioChanged)="onHistoricScenarioChanged($event)"
+                  />
+                } @else {
+                  <qs-simulation-params
+                    [draft]="strategyService.draft()"
+                    (scenarioChanged)="onScenarioChanged($event)"
+                    (configChanged)="onSimulationConfigChanged($event)"
+                  />
+                }
               }
               @case (3) {
-                <qs-dsl-editor 
+                <qs-dsl-editor
                   [draft]="strategyService.draft()"
                   (codeChanged)="onDslCodeChanged($event)"
                 />
               }
               @case (4) {
-                <qs-review 
+                <qs-review
                   [draft]="strategyService.draft()"
                   (nameChanged)="onNameChanged($event)"
                 />
@@ -288,6 +307,10 @@ export class StrategyBuilderComponent implements OnInit {
     const completed = this.steps.filter((s, i) => i < this.currentStep() || s.isComplete()).length;
     return Math.round((completed / this.steps.length) * 100);
   });
+
+  readonly isHistoricMode = computed(() => 
+    this.strategyService.draft().mode === SimulationMode.Historic
+  );
 
   ngOnInit(): void {
     // FIX: Clear draft if not editing to ensure clean slate
@@ -417,6 +440,10 @@ export class StrategyBuilderComponent implements OnInit {
     this.strategyService.updateDraft({ scenario });
   }
 
+  onHistoricScenarioChanged(scenario: HistoricScenario): void {
+    this.strategyService.updateDraft({ scenario });
+  }
+
   onSimulationConfigChanged(config: any): void {
     this.strategyService.updateDraft({ simulationConfig: config });
   }
@@ -505,7 +532,13 @@ export class StrategyBuilderComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result?.success) {
-        this.router.navigate(['/results', strategy.id]);
+        // --- FIX START: Conditional Routing ---
+        if (strategy.mode === SimulationMode.Historic) {
+          this.router.navigate(['/results/historic', strategy.id]);
+        } else {
+          this.router.navigate(['/results', strategy.id]);
+        }
+        // --- FIX END ---
       } else if (result?.minimized) {
         // Simulation is already running in background, register with queue for tracking
         this.queueService.registerRunning(strategy);

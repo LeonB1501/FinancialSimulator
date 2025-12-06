@@ -73,17 +73,17 @@ export function evaluate(runId, program, config, history, initialCash) {
     let currentState = emptyState((matchValue = config.Scenario, (matchValue.tag === 2) ? matchValue.fields[0].InitialPortfolio : initialCash), config.RiskFreeRate);
     const equityCurve = new Float64Array(config.TradingDays + 1);
     for (let day = 0; day <= config.TradingDays; day++) {
-        currentState = (new EvaluationState(day, currentState.Portfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate));
+        currentState = (new EvaluationState(day, currentState.Portfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
         const settledPortfolio = processSettlement(currentState.Portfolio, history, day, config.RiskFreeRate);
-        currentState = (new EvaluationState(currentState.CurrentDay, settledPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate));
+        currentState = (new EvaluationState(currentState.CurrentDay, settledPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
         const cashflowPortfolio = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate);
-        currentState = (new EvaluationState(currentState.CurrentDay, cashflowPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate));
+        currentState = (new EvaluationState(currentState.CurrentDay, cashflowPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
         if (((length(currentState.Portfolio.Positions) > 0) ? true : (currentState.Portfolio.Cash > 0)) && ((day === 0) ? true : ((day % config.Granularity) === 0))) {
             currentState = interpretStep(program, currentState, history);
         }
         const dailyValue = calculatePortfolioValue(currentState.Portfolio, history, day, config.RiskFreeRate);
         setItem(equityCurve, day, dailyValue);
     }
-    return new SimulationRunResult(runId, equityCurve, currentState);
+    return new SimulationRunResult(runId, equityCurve, currentState, currentState.TransactionHistory);
 }
 

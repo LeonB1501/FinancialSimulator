@@ -38,7 +38,7 @@ import { StrategySummary, StrategyStatus, SimulationMode, StochasticModel } from
       <div class="flex items-center space-x-3 pt-4 border-t border-surface-100 dark:border-surface-700">
         @if (strategy.latestResultId) {
           <a 
-            [routerLink]="['/results', strategy.latestResultId]"
+            [routerLink]="strategy.mode === 'historic' ? ['/results/historic', strategy.id] : ['/results', strategy.latestResultId]"
             class="flex-1 btn-primary btn-sm text-center"
           >
             View Results
@@ -104,7 +104,12 @@ export class StrategyCardComponent {
   }
 
   get modeLabel(): string {
-    return this.strategy.mode === SimulationMode.Accumulation ? 'Accumulation' : 'Retirement';
+    switch (this.strategy.mode) {
+      case SimulationMode.Accumulation: return 'Accumulation';
+      case SimulationMode.Retirement: return 'Retirement';
+      case SimulationMode.Historic: return 'Historic Backtest';
+      default: return this.strategy.mode;
+    }
   }
 
   get statusLabel(): string {

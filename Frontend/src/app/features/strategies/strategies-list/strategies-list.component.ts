@@ -66,6 +66,7 @@ import { ConfirmationDialogComponent, ConfirmationDialogData } from '@shared/com
                 <option value="">All Modes</option>
                 <option [value]="SimulationMode.Accumulation">Accumulation</option>
                 <option [value]="SimulationMode.Retirement">Retirement</option>
+                <option [value]="SimulationMode.Historic">Historic Backtest</option>
               </select>
             </div>
 
@@ -198,6 +199,18 @@ export class StrategiesListComponent implements OnInit, OnDestroy {
     // 1. Fetch full strategy details first
     this.strategyService.loadStrategy(strategy.id).subscribe({
       next: (fullStrategy) => {
+        // If results exist, navigate immediately
+        if (fullStrategy.latestResultId) {
+           // --- FIX START: Conditional Routing ---
+           if (fullStrategy.mode === SimulationMode.Historic) {
+             this.router.navigate(['/results/historic', fullStrategy.id]);
+           } else {
+             this.router.navigate(['/results', fullStrategy.latestResultId]);
+           }
+           // --- FIX END ---
+           return;
+        }
+
         // 2. Open Progress Dialog
         const dialogRef = this.dialog.open(SimulationProgressDialogComponent, {
           disableClose: true,
@@ -209,7 +222,13 @@ export class StrategiesListComponent implements OnInit, OnDestroy {
         dialogRef.afterClosed().subscribe(result => {
           if (result?.success) {
             this.notificationService.success('Simulation completed successfully!');
-            this.router.navigate(['/results', strategy.id]);
+            // --- FIX START: Conditional Routing ---
+            if (fullStrategy.mode === SimulationMode.Historic) {
+              this.router.navigate(['/results/historic', fullStrategy.id]);
+            } else {
+              this.router.navigate(['/results', fullStrategy.id]);
+            }
+            // --- FIX END ---
           } else if (result?.minimized) {
             // Register with queue for background tracking
             this.queueService.registerRunning(fullStrategy as Strategy);

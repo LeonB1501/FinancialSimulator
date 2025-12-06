@@ -1,6 +1,22 @@
 import { Union, Record } from "../fable_modules/fable-library-js.4.27.0/Types.js";
-import { bool_type, array_type, class_type, tuple_type, option_type, union_type, int32_type, list_type, string_type, record_type, float64_type } from "../fable_modules/fable-library-js.4.27.0/Reflection.js";
+import { bool_type, array_type, class_type, tuple_type, option_type, union_type, list_type, record_type, float64_type, string_type, int32_type } from "../fable_modules/fable-library-js.4.27.0/Reflection.js";
 import { PositionExpression_$reflection, AssetReference_$reflection } from "../Language/AST.js";
+
+export class Transaction extends Record {
+    constructor(Date$, Ticker, Type, Quantity, Price, Value) {
+        super();
+        this.Date = (Date$ | 0);
+        this.Ticker = Ticker;
+        this.Type = Type;
+        this.Quantity = Quantity;
+        this.Price = Price;
+        this.Value = Value;
+    }
+}
+
+export function Transaction_$reflection() {
+    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type]]);
+}
 
 export class HestonParameters extends Record {
     constructor(Kappa, Theta, Sigma, Rho, V0, Mu, Epsilon) {
@@ -254,18 +270,19 @@ export function Value_$reflection() {
 }
 
 export class EvaluationState extends Record {
-    constructor(CurrentDay, Portfolio, ScopeStack, GlobalScope, RiskFreeRate) {
+    constructor(CurrentDay, Portfolio, ScopeStack, GlobalScope, RiskFreeRate, TransactionHistory) {
         super();
         this.CurrentDay = (CurrentDay | 0);
         this.Portfolio = Portfolio;
         this.ScopeStack = ScopeStack;
         this.GlobalScope = GlobalScope;
         this.RiskFreeRate = RiskFreeRate;
+        this.TransactionHistory = TransactionHistory;
     }
 }
 
 export function EvaluationState_$reflection() {
-    return record_type("EngineTypes.EvaluationState", [], EvaluationState, () => [["CurrentDay", int32_type], ["Portfolio", Portfolio_$reflection()], ["ScopeStack", list_type(list_type(tuple_type(string_type, Value_$reflection())))], ["GlobalScope", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [string_type, Value_$reflection()])], ["RiskFreeRate", float64_type]]);
+    return record_type("EngineTypes.EvaluationState", [], EvaluationState, () => [["CurrentDay", int32_type], ["Portfolio", Portfolio_$reflection()], ["ScopeStack", list_type(list_type(tuple_type(string_type, Value_$reflection())))], ["GlobalScope", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [string_type, Value_$reflection()])], ["RiskFreeRate", float64_type], ["TransactionHistory", list_type(Transaction_$reflection())]]);
 }
 
 export class BuyParams extends Record {
@@ -349,15 +366,16 @@ export function PricePath_$reflection() {
 }
 
 export class SimulationRunResult extends Record {
-    constructor(RunId, EquityCurve, FinalState) {
+    constructor(RunId, EquityCurve, FinalState, TransactionHistory) {
         super();
         this.RunId = (RunId | 0);
         this.EquityCurve = EquityCurve;
         this.FinalState = FinalState;
+        this.TransactionHistory = TransactionHistory;
     }
 }
 
 export function SimulationRunResult_$reflection() {
-    return record_type("EngineTypes.SimulationRunResult", [], SimulationRunResult, () => [["RunId", int32_type], ["EquityCurve", array_type(float64_type)], ["FinalState", EvaluationState_$reflection()]]);
+    return record_type("EngineTypes.SimulationRunResult", [], SimulationRunResult, () => [["RunId", int32_type], ["EquityCurve", array_type(float64_type)], ["FinalState", EvaluationState_$reflection()], ["TransactionHistory", list_type(Transaction_$reflection())]]);
 }
 

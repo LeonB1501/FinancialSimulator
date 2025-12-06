@@ -1,11 +1,11 @@
-import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subscription, interval } from 'rxjs';
 import { SimulationService } from '@core/services/simulation.service';
-import { Strategy, SimulationState } from '@core/models';
+import { Strategy, SimulationState, SimulationMode } from '@core/models';
 import { DurationPipe } from '@shared/pipes/duration.pipe';
 
 interface DialogData {
@@ -25,46 +25,54 @@ interface DialogData {
   ],
   template: `
     <div class="p-8 text-center">
-      <!-- Progress Circle -->
-      <div class="relative w-48 h-48 mx-auto mb-8">
-        <!-- Background circle -->
-        <svg class="w-full h-full transform -rotate-90">
-          <circle
-            cx="96"
-            cy="96"
-            r="88"
-            stroke="#E2E8F0"
-            stroke-width="12"
-            fill="none"
-          />
-          <circle
-            cx="96"
-            cy="96"
-            r="88"
-            stroke="url(#progressGradient)"
-            stroke-width="12"
-            fill="none"
-            stroke-linecap="round"
-            [attr.stroke-dasharray]="circumference"
-            [attr.stroke-dashoffset]="dashOffset()"
-            class="transition-all duration-300"
-          />
-          <defs>
-            <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#00D4AA"/>
-              <stop offset="100%" stop-color="#00A080"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        
-        <!-- Center content -->
-        <div class="absolute inset-0 flex flex-col items-center justify-center">
-          <span class="text-4xl font-bold text-surface-900 dark:text-surface-100">{{ percentComplete() | number:'1.0-1' }}%</span>
-          <span class="text-sm text-surface-500 dark:text-surface-400 mt-1">
-            {{ completedIterations() | number }} / {{ totalIterations() | number }}
-          </span>
+      
+      @if (isHistoricMode()) {
+        <!-- Historic Mode: Indeterminate Spinner -->
+        <div class="relative w-24 h-24 mx-auto mb-8 flex items-center justify-center">
+           <mat-spinner diameter="80" strokeWidth="6"></mat-spinner>
         </div>
-      </div>
+      } @else {
+        <!-- Monte Carlo Mode: Progress Circle -->
+        <div class="relative w-48 h-48 mx-auto mb-8">
+          <!-- Background circle -->
+          <svg class="w-full h-full transform -rotate-90">
+            <circle
+              cx="96"
+              cy="96"
+              r="88"
+              stroke="#E2E8F0"
+              stroke-width="12"
+              fill="none"
+            />
+            <circle
+              cx="96"
+              cy="96"
+              r="88"
+              stroke="url(#progressGradient)"
+              stroke-width="12"
+              fill="none"
+              stroke-linecap="round"
+              [attr.stroke-dasharray]="circumference"
+              [attr.stroke-dashoffset]="dashOffset()"
+              class="transition-all duration-300"
+            />
+            <defs>
+              <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#00D4AA"/>
+                <stop offset="100%" stop-color="#00A080"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          
+          <!-- Center content -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span class="text-4xl font-bold text-surface-900 dark:text-surface-100">{{ percentComplete() | number:'1.0-1' }}%</span>
+            <span class="text-sm text-surface-500 dark:text-surface-400 mt-1">
+              {{ completedIterations() | number }} / {{ totalIterations() | number }}
+            </span>
+          </div>
+        </div>
+      }
 
       <!-- Status -->
       <div class="mb-6">
@@ -80,10 +88,12 @@ interface DialogData {
           <p class="text-sm text-surface-500 dark:text-surface-400">Elapsed</p>
           <p class="font-medium text-surface-900 dark:text-surface-100">{{ elapsedMs() | duration }}</p>
         </div>
-        <div>
-          <p class="text-sm text-surface-500 dark:text-surface-400">Remaining</p>
-          <p class="font-medium text-surface-900 dark:text-surface-100">{{ estimatedRemainingMs() | duration }}</p>
-        </div>
+        @if (!isHistoricMode()) {
+          <div>
+            <p class="text-sm text-surface-500 dark:text-surface-400">Remaining</p>
+            <p class="font-medium text-surface-900 dark:text-surface-100">{{ estimatedRemainingMs() | duration }}</p>
+          </div>
+        }
       </div>
 
       <!-- Action Buttons -->
@@ -164,6 +174,8 @@ export class SimulationProgressDialogComponent implements OnInit, OnDestroy {
 
   readonly state = this.simulationService.state;
 
+  readonly isHistoricMode = computed(() => this.data.strategy.mode === SimulationMode.Historic);
+
   dashOffset = () => this.circumference - (this.percentComplete() / 100) * this.circumference;
 
   statusTitle = () => {
@@ -192,8 +204,8 @@ export class SimulationProgressDialogComponent implements OnInit, OnDestroy {
         const currentElapsed = Date.now() - this.startTime;
         this.elapsedMs.set(currentElapsed);
 
-        // Recalculate remaining time based on current speed
-        if (this.iterationsPerMs > 0 && this.totalIterations() > 0) {
+        // Recalculate remaining time based on current speed (Only for Monte Carlo)
+        if (!this.isHistoricMode() && this.iterationsPerMs > 0 && this.totalIterations() > 0) {
           const remaining = this.totalIterations() - this.completedIterations();
           this.estimatedRemainingMs.set(remaining / this.iterationsPerMs);
         }

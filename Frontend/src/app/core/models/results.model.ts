@@ -16,7 +16,7 @@ export interface SimulationResults {
   
   // Core metrics
   successProbability: number;
-  ruinProbability: number; // <--- ADDED
+  ruinProbability: number;
   terminalWealthStats: DistributionStats;
   timeToTargetStats: DistributionStats | null;
   
@@ -35,6 +35,52 @@ export interface SimulationResults {
   // Histogram data
   wealthDistribution: HistogramData;
   timeToTargetDistribution: HistogramData | null;
+}
+
+// ============================================
+// HISTORIC BACKTEST RESULTS
+// ============================================
+
+export interface HistoricTransaction {
+  day: number;
+  date: Date;
+  ticker: string;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  price: number;
+  value: number;
+}
+
+export interface HistoricBacktestResults {
+  id: string;
+  strategyId: string;
+  strategyName: string;
+  createdAt: Date;
+  
+  // Equity data
+  equityCurve: number[];
+  benchmarkCurve: number[];
+  drawdownCurve: number[];
+  dates: Date[];
+  
+  // Performance metrics
+  totalReturn: number;
+  benchmarkReturn: number;
+  alpha: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+  volatility: number;
+  
+  // Trade data
+  transactions: HistoricTransaction[];
+  totalTrades: number;
+  buyCount: number;
+  sellCount: number;
+  
+  // Period info
+  startDate: Date;
+  endDate: Date;
+  tradingDays: number;
 }
 
 export interface ResultsMetadata {

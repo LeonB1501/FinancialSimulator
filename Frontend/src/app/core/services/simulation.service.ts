@@ -10,7 +10,8 @@ import {
   SimulationMode, 
   Granularity, 
   AccumulationScenario, 
-  RetirementScenario 
+  RetirementScenario,
+  HistoricScenario
 } from '../models/strategy.model';
 import { 
   SimulationState,
@@ -64,7 +65,7 @@ export class SimulationService {
     return Promise.resolve();
   }
 
-  runSimulation(strategy: Strategy): Observable<SimulationResults> {
+  runSimulation(strategy: Strategy): Observable<any> {
     if (this.isRunning()) {
       return throwError(() => new Error('A simulation is already running'));
     }
@@ -93,6 +94,12 @@ export class SimulationService {
     // Emit initial progress
     this.progressSubject.next(this.currentJob.progress);
 
+    // --- BRANCH: HISTORIC BACKTEST ---
+    if (strategy.mode === SimulationMode.Historic) {
+      return this.executeHistoricBacktest(strategy, startTime);
+    }
+
+    // --- BRANCH: MONTE CARLO (Worker) ---
     // 1. Fetch Historical Data if needed (for Blocked Bootstrap)
     const historyRequests: Observable<any>[] = [];
     const tickersNeedingHistory: string[] = [];
@@ -120,11 +127,49 @@ export class SimulationService {
         // 2. Run Worker
         return this.runWorkerSimulation(strategy, historyMap, startTime);
       }),
-      catchError(err => {
+      catchError((err: any) => {
         this.handleError('Failed to prepare simulation: ' + err.message, null);
         return throwError(() => err);
       })
     );
+  }
+
+  private executeHistoricBacktest(strategy: Strategy, startTime: number): Observable<any> {
+    const s = strategy.scenario as HistoricScenario;
+    
+    // Update state to Running (Indeterminate)
+    this._state.set(SimulationState.Running);
+    this.updateProgress(0, 1, 'Running Historic Backtest on Server...', 0, 0);
+
+    return this.runHistoricBacktestApi(strategy.id, new Date(s.startDate), new Date(s.endDate), s.benchmarkTicker)
+      .pipe(
+        switchMap((response: any) => {
+          if (!response.success) {
+            throw new Error(response.error || 'Historic backtest failed');
+          }
+
+          // Inject strategyId so the backend can link it correctly when saving
+          const resultToSave = {
+            ...response,
+            strategyId: strategy.id,
+            strategyName: strategy.name,
+            createdAt: new Date()
+          };
+
+          // Save to DB
+          return this.saveResultsToBackend(resultToSave).pipe(
+            map((savedRecord: any) => ({ ...resultToSave, id: savedRecord.id }))
+          );
+        }),
+        tap(finalResult => {
+          this._state.set(SimulationState.Completed);
+          this.updateProgress(100, 1, 'Completed', Date.now() - startTime, 0);
+        }),
+        catchError((err: any) => {
+          this.handleError(err.message, null);
+          return throwError(() => err);
+        })
+      );
   }
 
   private runWorkerSimulation(
@@ -139,7 +184,7 @@ export class SimulationService {
       const input = this.mapStrategyToFableInput(strategy, historyMap);
       
       return this.api.post<any>('/Debug/run', input).pipe(
-        map(response => {
+        map((response: any) => {
           if (!response.success) {
             throw new Error(response.error);
           }
@@ -194,7 +239,7 @@ export class SimulationService {
 
             // 2. Save to Backend
             this.saveResultsToBackend(results).subscribe({
-              next: (savedRecord) => {
+              next: (savedRecord: any) => {
                 console.log('Results saved successfully with ID:', savedRecord.id);
                 this._state.set(SimulationState.Completed);
                 if (this.currentJob) {
@@ -215,7 +260,7 @@ export class SimulationService {
                 observer.next({ ...results, id: savedRecord.id });
                 observer.complete();
               },
-              error: (err) => {
+              error: (err: any) => {
                 console.error('Failed to save results to backend:', err);
                 this.notificationServiceError('Simulation finished, but results could not be saved.');
                 this._state.set(SimulationState.Completed);
@@ -261,7 +306,7 @@ export class SimulationService {
 
   // --- Backend Persistence ---
 
-  private saveResultsToBackend(results: SimulationResults): Observable<{ id: string }> {
+  private saveResultsToBackend(results: any): Observable<{ id: string }> {
     return this.api.post<{ id: string }>('/results', results);
   }
 
@@ -275,6 +320,16 @@ export class SimulationService {
 
   exportResults(resultsId: string, format: 'pdf' | 'csv' | 'json' | 'xlsx'): Observable<Blob> {
     return this.api.get<Blob>(`/results/${resultsId}/export`, { format });
+  }
+
+  // --- Historic Backtest ---
+
+  private runHistoricBacktestApi(strategyId: string, startDate: Date, endDate: Date, benchmarkTicker: string = 'spy'): Observable<any> {
+    return this.api.post<any>(`/strategies/${strategyId}/run-historic`, {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      benchmarkTicker
+    });
   }
 
   // --- Helper Methods ---
@@ -355,7 +410,7 @@ export class SimulationService {
         ContributionGrowthRate: s.contributionGrowthRate ?? 0, 
         TargetWealth: s.targetWealth ?? 0
       }];
-    } else {
+    } else if (strategy.mode === SimulationMode.Retirement) {
       const s = strategy.scenario as RetirementScenario;
       scenario = ["Retirement", {
         MonthlyWithdrawal: s.monthlyWithdrawal ?? 0,
@@ -384,11 +439,27 @@ export class SimulationService {
       historicalData.push([ticker, mappedData]);
     });
 
+    // --- FIX: Calculate Trading Days correctly for Historic Mode ---
+    let tradingDays = 0;
+    
+    if (strategy.mode === SimulationMode.Historic) {
+      const s = strategy.scenario as HistoricScenario;
+      const start = new Date(s.startDate);
+      const end = new Date(s.endDate);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // Approximation of trading days (5/7 of total days)
+      tradingDays = Math.floor(diffDays * (252 / 365)); 
+    } else {
+      // Existing logic for Accumulation/Retirement
+      tradingDays = (strategy.scenario as any).timelineYears * 252;
+    }
+
     return {
       Config: {
         Assets: assets,
         Correlations: correlations, 
-        TradingDays: (strategy.scenario as any).timelineYears * 252,
+        TradingDays: tradingDays,
         Iterations: strategy.simulationConfig.iterations,
         RiskFreeRate: strategy.simulationConfig.riskFreeRate,
         Granularity: strategy.simulationConfig.granularity === 'daily' ? 1 : 

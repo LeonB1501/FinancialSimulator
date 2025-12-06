@@ -1,10 +1,10 @@
 import { price as price_3 } from "../Simulation/PricingModels.js";
-import { fold, choose, filter, sumBy, empty, sortBy, cons, head, tail, isEmpty, append, tryFind } from "../fable_modules/fable-library-js.4.27.0/List.js";
+import { fold, choose, ofArray, filter, sumBy, empty, sortBy, cons, head, tail, isEmpty, append, tryFind } from "../fable_modules/fable-library-js.4.27.0/List.js";
 import { item } from "../fable_modules/fable-library-js.4.27.0/Array.js";
 import { stringHash, comparePrimitives, equals } from "../fable_modules/fable-library-js.4.27.0/Util.js";
-import { SellParams, BuyParams, Portfolio, PositionInstance } from "./EngineTypes.js";
+import { SellParams, BuyParams, Transaction, Portfolio, PositionInstance } from "./EngineTypes.js";
 import { newGuid } from "../fable_modules/fable-library-js.4.27.0/Guid.js";
-import { defaultArg } from "../fable_modules/fable-library-js.4.27.0/Option.js";
+import { toArray, defaultArg } from "../fable_modules/fable-library-js.4.27.0/Option.js";
 import { List_distinct } from "../fable_modules/fable-library-js.4.27.0/Seq2.js";
 
 function getMarketPrice(instrument, history, currentDay, riskFreeRate) {
@@ -47,6 +47,31 @@ function getMultiplier(instrument) {
     }
     else {
         return 1;
+    }
+}
+
+function getTickerFromInstrument(instrument) {
+    switch (instrument.tag) {
+        case 1: {
+            const matchValue = instrument.fields[0].Underlying;
+            if (matchValue.tag === 1) {
+                return `OPT_${matchValue.fields[1]}x_${matchValue.fields[0]}`;
+            }
+            else {
+                return `OPT_${matchValue.fields[0]}`;
+            }
+        }
+        case 2:
+            return "COMPOUND";
+        default: {
+            const assetRef = instrument.fields[0];
+            if (assetRef.tag === 1) {
+                return `${assetRef.fields[1]}x_${assetRef.fields[0]}`;
+            }
+            else {
+                return assetRef.fields[0];
+            }
+        }
     }
 }
 
@@ -93,11 +118,12 @@ function executeBuy(portfolio, params_, history, currentDay, batchGroupId, riskF
     }), empty());
     const remainingQty = patternInput[0];
     const newPositionsAfterCover = patternInput[1];
-    return new Portfolio(portfolio.Cash - cost, (remainingQty > 0) ? cons(new PositionInstance(newGuid(), batchGroupId, defaultArg(params_.DefinitionName, ""), params_.ComponentName, undefined, executionPrice, currentDay, remainingQty, params_.Instrument), newPositionsAfterCover) : newPositionsAfterCover, portfolio.CompositeRegistry);
+    return [new Portfolio(portfolio.Cash - cost, (remainingQty > 0) ? cons(new PositionInstance(newGuid(), batchGroupId, defaultArg(params_.DefinitionName, ""), params_.ComponentName, undefined, executionPrice, currentDay, remainingQty, params_.Instrument), newPositionsAfterCover) : newPositionsAfterCover, portfolio.CompositeRegistry), (params_.Quantity > 0) ? (new Transaction(currentDay, getTickerFromInstrument(params_.Instrument), "BUY", params_.Quantity, executionPrice, cost)) : undefined];
 }
 
 function executeSell(portfolio, params_, history, currentDay, batchGroupId, riskFreeRate) {
     const executionPrice = getMarketPrice(params_.Instrument, history, currentDay, riskFreeRate);
+    const proceeds = (executionPrice * params_.Quantity) * getMultiplier(params_.Instrument);
     const consumeQuantity = (remainingToSell_mut, positions_mut, acc_mut) => {
         consumeQuantity:
         while (true) {
@@ -132,9 +158,9 @@ function executeSell(portfolio, params_, history, currentDay, batchGroupId, risk
             break;
         }
     };
-    return new Portfolio(portfolio.Cash + ((executionPrice * params_.Quantity) * getMultiplier(params_.Instrument)), consumeQuantity(params_.Quantity, sortBy((p) => p.BuyDate, portfolio.Positions, {
+    return [new Portfolio(portfolio.Cash + proceeds, consumeQuantity(params_.Quantity, sortBy((p) => p.BuyDate, portfolio.Positions, {
         Compare: comparePrimitives,
-    }), empty()), portfolio.CompositeRegistry);
+    }), empty()), portfolio.CompositeRegistry), (params_.Quantity > 0) ? (new Transaction(currentDay, getTickerFromInstrument(params_.Instrument), "SELL", params_.Quantity, executionPrice, proceeds)) : undefined];
 }
 
 function executeRebalance(portfolio, params_, history, currentDay, riskFreeRate) {
@@ -148,19 +174,24 @@ function executeRebalance(portfolio, params_, history, currentDay, riskFreeRate)
     const price_2 = getMarketPrice(params_.Instrument, history, currentDay, riskFreeRate);
     const multiplier = getMultiplier(params_.Instrument);
     if (price_2 === 0) {
-        return portfolio;
+        return [portfolio, empty()];
     }
     else {
         const qty = Math.abs(diff / (price_2 * multiplier));
         if (diff > 0) {
-            return executeBuy(portfolio, new BuyParams(params_.Instrument, qty, undefined, "REBALANCE"), history, currentDay, undefined, riskFreeRate);
+            const patternInput = executeBuy(portfolio, new BuyParams(params_.Instrument, qty, undefined, "REBALANCE"), history, currentDay, undefined, riskFreeRate);
+            return [patternInput[0], ofArray(toArray(patternInput[1]))];
         }
         else {
-            return executeSell(portfolio, new SellParams(params_.Instrument, qty, undefined, "REBALANCE"), history, currentDay, undefined, riskFreeRate);
+            const patternInput_1 = executeSell(portfolio, new SellParams(params_.Instrument, qty, undefined, "REBALANCE"), history, currentDay, undefined, riskFreeRate);
+            return [patternInput_1[0], ofArray(toArray(patternInput_1[1]))];
         }
     }
 }
 
+/**
+ * Execute trades and return updated portfolio along with transaction log
+ */
 export function executeTrades(trades, portfolio, history, currentDay, riskFreeRate) {
     let batchGroupId;
     const definitions = List_distinct(choose((_arg) => {
@@ -197,15 +228,23 @@ export function executeTrades(trades, portfolio, history, currentDay, riskFreeRa
         default:
             batchGroupId = undefined;
     }
-    return fold((currentPortfolio, trade) => {
+    return fold((tupledArg, trade) => {
+        const currentPortfolio = tupledArg[0];
+        const txnAcc = tupledArg[1];
         switch (trade.tag) {
-            case 1:
-                return executeSell(currentPortfolio, trade.fields[0], history, currentDay, batchGroupId, riskFreeRate);
-            case 2:
-                return executeRebalance(currentPortfolio, trade.fields[0], history, currentDay, riskFreeRate);
-            default:
-                return executeBuy(currentPortfolio, trade.fields[0], history, currentDay, batchGroupId, riskFreeRate);
+            case 1: {
+                const patternInput_1 = executeSell(currentPortfolio, trade.fields[0], history, currentDay, batchGroupId, riskFreeRate);
+                return [patternInput_1[0], append(txnAcc, ofArray(toArray(patternInput_1[1])))];
+            }
+            case 2: {
+                const patternInput_2 = executeRebalance(currentPortfolio, trade.fields[0], history, currentDay, riskFreeRate);
+                return [patternInput_2[0], append(txnAcc, patternInput_2[1])];
+            }
+            default: {
+                const patternInput = executeBuy(currentPortfolio, trade.fields[0], history, currentDay, batchGroupId, riskFreeRate);
+                return [patternInput[0], append(txnAcc, ofArray(toArray(patternInput[1])))];
+            }
         }
-    }, portfolio, trades);
+    }, [portfolio, empty()], trades);
 }
 
