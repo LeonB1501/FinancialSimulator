@@ -197,7 +197,19 @@ export class SimulationService {
               next: (savedRecord) => {
                 console.log('Results saved successfully with ID:', savedRecord.id);
                 this._state.set(SimulationState.Completed);
-                if (this.currentJob) this.currentJob.completedAt = new Date();
+                if (this.currentJob) {
+                  this.currentJob.completedAt = new Date();
+                  // Emit final progress with Completed state so queue service can detect completion
+                  this.currentJob.progress = {
+                    ...this.currentJob.progress,
+                    state: SimulationState.Completed,
+                    percentComplete: 100,
+                    currentPhase: 'Completed',
+                    estimatedRemainingMs: 0,
+                  };
+                  this._progress.set(this.currentJob.progress);
+                  this.progressSubject.next(this.currentJob.progress);
+                }
 
                 // Return the results
                 observer.next({ ...results, id: savedRecord.id });
@@ -207,6 +219,17 @@ export class SimulationService {
                 console.error('Failed to save results to backend:', err);
                 this.notificationServiceError('Simulation finished, but results could not be saved.');
                 this._state.set(SimulationState.Completed);
+                if (this.currentJob) {
+                  this.currentJob.progress = {
+                    ...this.currentJob.progress,
+                    state: SimulationState.Completed,
+                    percentComplete: 100,
+                    currentPhase: 'Completed',
+                    estimatedRemainingMs: 0,
+                  };
+                  this._progress.set(this.currentJob.progress);
+                  this.progressSubject.next(this.currentJob.progress);
+                }
                 observer.next(results);
                 observer.complete();
               }

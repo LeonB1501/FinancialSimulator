@@ -263,9 +263,17 @@ export class StrategyBuilderComponent implements OnInit {
       id: 'dsl',
       label: 'Strategy DSL',
       shortLabel: 'DSL',
-      // DSL is valid even if empty (default strategy), but complete only if code exists
-      isComplete: () => (this.strategyService.draft().dsl?.code?.length || 0) > 0,
-      isValid: () => true,
+      // DSL must have code and no validation errors
+      isComplete: () => {
+        const dsl = this.strategyService.draft().dsl;
+        return (dsl?.code?.length || 0) > 0 && (dsl?.isValid !== false);
+      },
+      isValid: () => {
+        const dsl = this.strategyService.draft().dsl;
+        const hasCode = (dsl?.code?.trim().length || 0) > 0;
+        const isValid = dsl?.isValid !== false && (dsl?.errors?.length || 0) === 0;
+        return hasCode && isValid;
+      },
     },
     {
       id: 'review',
@@ -369,7 +377,13 @@ export class StrategyBuilderComponent implements OnInit {
   }
 
   canSubmit(): boolean {
-    return this.steps.slice(0, -1).every(s => s.isComplete());
+    // All steps must be complete AND DSL must be valid
+    const allStepsComplete = this.steps.slice(0, -1).every(s => s.isComplete());
+    const dsl = this.strategyService.draft().dsl;
+    const dslIsValid = (dsl?.code?.trim().length || 0) > 0 &&
+                       dsl?.isValid !== false &&
+                       (dsl?.errors?.length || 0) === 0;
+    return allStepsComplete && dslIsValid;
   }
 
   onModeSelected(mode: SimulationMode): void {
