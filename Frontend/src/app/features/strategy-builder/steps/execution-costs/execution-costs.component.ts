@@ -5,6 +5,16 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { StrategyDraft, ExecutionCosts, VolatilityTier, DEFAULT_EXECUTION_COSTS } from '@core/models';
 
+export interface TierValidationError {
+  index: number;
+  message: string;
+}
+
+export interface CostsValidationResult {
+  isValid: boolean;
+  errors: TierValidationError[];
+}
+
 @Component({
   selector: 'qs-execution-costs',
   standalone: true,
@@ -75,9 +85,24 @@ import { StrategyDraft, ExecutionCosts, VolatilityTier, DEFAULT_EXECUTION_COSTS 
         </div>
 
         <p class="text-sm text-surface-600 dark:text-surface-400 mb-6 bg-surface-50 dark:bg-surface-700/50 p-3 rounded-lg border border-surface-100 dark:border-surface-700">
-          Define how the Bid/Ask spread widens as market volatility increases. 
-          The engine will check the current volatility of the underlying asset and apply the matching spread penalty.
+          Define how the Bid/Ask spread widens as market volatility increases.
+          The engine will check the current <strong>annualized volatility (%)</strong> of the underlying asset and apply the matching spread penalty.
+          <span class="block mt-1 text-xs text-surface-500">Typical values: SPY ≈ 15-20%, QQQ ≈ 20-25%, individual stocks ≈ 25-50%.</span>
         </p>
+
+        @if (validationResult && !validationResult.isValid) {
+          <div class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <div class="flex items-center text-red-700 dark:text-red-400 font-medium mb-1">
+              <mat-icon class="text-sm mr-1">error</mat-icon>
+              Validation Errors
+            </div>
+            <ul class="text-sm text-red-600 dark:text-red-400 list-disc list-inside">
+              @for (error of validationResult.errors; track error.index) {
+                <li>{{ error.message }}</li>
+              }
+            </ul>
+          </div>
+        }
 
         <!-- Base Spread -->
         <div class="mb-6 max-w-xs">
@@ -101,15 +126,15 @@ import { StrategyDraft, ExecutionCosts, VolatilityTier, DEFAULT_EXECUTION_COSTS 
             <table class="w-full text-sm text-left">
               <thead class="bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400">
                 <tr>
-                  <th class="px-4 py-3 font-medium">Min Volatility</th>
-                  <th class="px-4 py-3 font-medium">Max Volatility</th>
+                  <th class="px-4 py-3 font-medium">Min Vol (% ann.)</th>
+                  <th class="px-4 py-3 font-medium">Max Vol (% ann.)</th>
                   <th class="px-4 py-3 font-medium">Spread Penalty</th>
                   <th class="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-surface-100 dark:divide-surface-700">
                 @for (tier of costs.slippage.volatilityTiers; track $index) {
-                  <tr class="bg-white dark:bg-surface-800">
+                  <tr [class]="hasTierError($index) ? 'bg-red-50 dark:bg-red-900/20' : 'bg-white dark:bg-surface-800'">
                     <td class="px-4 py-2">
                       <div class="relative w-24">
                         <input 
@@ -157,7 +182,8 @@ import { StrategyDraft, ExecutionCosts, VolatilityTier, DEFAULT_EXECUTION_COSTS 
             </table>
           </div>
           <p class="text-xs text-surface-500 mt-2 italic">
-            * Volatility ranges are inclusive of Min and exclusive of Max.
+            * Volatility ranges are inclusive of Min and exclusive of Max. Values are annualized volatility percentages.
+            If no tier matches, the default spread is used.
           </p>
         } @else {
           <div class="text-center p-8 border-2 border-dashed border-surface-200 dark:border-surface-700 rounded-xl">
@@ -172,19 +198,29 @@ import { StrategyDraft, ExecutionCosts, VolatilityTier, DEFAULT_EXECUTION_COSTS 
 export class ExecutionCostsComponent implements OnInit {
   @Input({ required: true }) draft!: StrategyDraft;
   @Output() costsChanged = new EventEmitter<ExecutionCosts>();
+  @Output() validationChanged = new EventEmitter<CostsValidationResult>();
 
   // Initialize with defaults to avoid null checks in template
   costs: ExecutionCosts = { ...DEFAULT_EXECUTION_COSTS };
+  validationResult: CostsValidationResult | null = null;
 
   ngOnInit() {
     if (this.draft.executionCosts) {
       // Deep copy to avoid mutating draft directly
       this.costs = JSON.parse(JSON.stringify(this.draft.executionCosts));
     }
+    this.validate();
   }
 
   addTier() {
-    this.costs.slippage.volatilityTiers.push({ minVol: 0, maxVol: 0, spread: 0 });
+    const tiers = this.costs.slippage.volatilityTiers;
+    // Set sensible defaults based on the last tier
+    const lastTier = tiers.length > 0 ? tiers[tiers.length - 1] : null;
+    const newMinVol = lastTier ? lastTier.maxVol : 0;
+    const newMaxVol = newMinVol + 15;
+    const newSpread = lastTier ? lastTier.spread * 2 : 0.1;
+
+    tiers.push({ minVol: newMinVol, maxVol: newMaxVol, spread: newSpread });
     this.emitChange();
   }
 
@@ -194,6 +230,72 @@ export class ExecutionCostsComponent implements OnInit {
   }
 
   emitChange() {
+    this.validate();
     this.costsChanged.emit(this.costs);
+  }
+
+  validate(): CostsValidationResult {
+    const errors: TierValidationError[] = [];
+    const tiers = this.costs.slippage.volatilityTiers;
+
+    // Validate individual tiers
+    tiers.forEach((tier, index) => {
+      // Check for negative values
+      if (tier.minVol < 0) {
+        errors.push({ index, message: `Tier ${index + 1}: Min volatility cannot be negative` });
+      }
+      if (tier.maxVol < 0) {
+        errors.push({ index, message: `Tier ${index + 1}: Max volatility cannot be negative` });
+      }
+      if (tier.spread < 0) {
+        errors.push({ index, message: `Tier ${index + 1}: Spread cannot be negative` });
+      }
+
+      // Check that minVol < maxVol
+      if (tier.minVol >= tier.maxVol) {
+        errors.push({ index, message: `Tier ${index + 1}: Min volatility must be less than Max volatility` });
+      }
+    });
+
+    // Check for overlapping tiers
+    for (let i = 0; i < tiers.length; i++) {
+      for (let j = i + 1; j < tiers.length; j++) {
+        const tierA = tiers[i];
+        const tierB = tiers[j];
+
+        // Tiers overlap if one starts before the other ends
+        // Range [minA, maxA) overlaps with [minB, maxB) if minA < maxB AND minB < maxA
+        if (tierA.minVol < tierB.maxVol && tierB.minVol < tierA.maxVol) {
+          errors.push({
+            index: j,
+            message: `Tier ${j + 1} overlaps with Tier ${i + 1} (${tierA.minVol}-${tierA.maxVol}% and ${tierB.minVol}-${tierB.maxVol}%)`
+          });
+        }
+      }
+    }
+
+    // Check commission values
+    if (this.costs.commission.perOrder < 0) {
+      errors.push({ index: -1, message: 'Per-order commission cannot be negative' });
+    }
+    if (this.costs.commission.perUnit < 0) {
+      errors.push({ index: -1, message: 'Per-unit commission cannot be negative' });
+    }
+    if (this.costs.slippage.defaultSpread < 0) {
+      errors.push({ index: -1, message: 'Default spread cannot be negative' });
+    }
+
+    this.validationResult = {
+      isValid: errors.length === 0,
+      errors
+    };
+
+    this.validationChanged.emit(this.validationResult);
+    return this.validationResult;
+  }
+
+  hasTierError(index: number): boolean {
+    if (!this.validationResult) return false;
+    return this.validationResult.errors.some(e => e.index === index);
   }
 }

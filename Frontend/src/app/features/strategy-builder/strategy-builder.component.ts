@@ -6,7 +6,7 @@ import { HeaderComponent } from '@shared/components/header/header.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { ModeSelectionComponent } from './steps/mode-selection/mode-selection.component';
 import { ModelConfigComponent } from './steps/model-config/model-config.component';
-import { ExecutionCostsComponent } from './steps/execution-costs/execution-costs.component'; // NEW IMPORT
+import { ExecutionCostsComponent, CostsValidationResult } from './steps/execution-costs/execution-costs.component'; // NEW IMPORT
 import { SimulationParamsComponent } from './steps/simulation-params/simulation-params.component';
 import { DslEditorComponent } from './steps/dsl-editor/dsl-editor.component';
 import { ReviewComponent } from './steps/review/review.component';
@@ -169,6 +169,7 @@ interface WizardStep {
                 <qs-execution-costs
                   [draft]="strategyService.draft()"
                   (costsChanged)="onCostsChanged($event)"
+                  (validationChanged)="onCostsValidationChanged($event)"
                 />
               }
               @case (3) {
@@ -266,6 +267,7 @@ export class StrategyBuilderComponent implements OnInit {
 
   readonly currentStep = signal(0);
   private editingStrategyId: string | null = null;
+  private costsValidation = signal<CostsValidationResult>({ isValid: true, errors: [] });
 
   steps: WizardStep[] = [
     {
@@ -288,7 +290,7 @@ export class StrategyBuilderComponent implements OnInit {
       label: 'Execution & Costs',
       shortLabel: 'Costs',
       isComplete: () => !!this.strategyService.draft().executionCosts,
-      isValid: () => true, // Optional, defaults used if skipped
+      isValid: () => this.costsValidation().isValid,
     },
     {
       id: 'params',
@@ -455,6 +457,10 @@ export class StrategyBuilderComponent implements OnInit {
 
   onCostsChanged(costs: ExecutionCosts): void {
     this.strategyService.updateDraft({ executionCosts: costs });
+  }
+
+  onCostsValidationChanged(validation: CostsValidationResult): void {
+    this.costsValidation.set(validation);
   }
 
   onScenarioChanged(scenario: any): void {
