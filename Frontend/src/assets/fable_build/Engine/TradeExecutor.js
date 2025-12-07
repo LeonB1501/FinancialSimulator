@@ -118,7 +118,7 @@ function executeBuy(portfolio, params_, history, currentDay, batchGroupId, riskF
     }), empty());
     const remainingQty = patternInput[0];
     const newPositionsAfterCover = patternInput[1];
-    return [new Portfolio(portfolio.Cash - cost, (remainingQty > 0) ? cons(new PositionInstance(newGuid(), batchGroupId, defaultArg(params_.DefinitionName, ""), params_.ComponentName, undefined, executionPrice, currentDay, remainingQty, params_.Instrument), newPositionsAfterCover) : newPositionsAfterCover, portfolio.CompositeRegistry), (params_.Quantity > 0) ? (new Transaction(currentDay, getTickerFromInstrument(params_.Instrument), "BUY", params_.Quantity, executionPrice, cost)) : undefined];
+    return [new Portfolio(portfolio.Cash - cost, (remainingQty > 0) ? cons(new PositionInstance(newGuid(), batchGroupId, defaultArg(params_.DefinitionName, ""), params_.ComponentName, undefined, executionPrice, currentDay, remainingQty, params_.Instrument), newPositionsAfterCover) : newPositionsAfterCover, portfolio.CompositeRegistry), (params_.Quantity > 0) ? (new Transaction(currentDay, getTickerFromInstrument(params_.Instrument), "BUY", params_.Quantity, executionPrice, cost, params_.DefinitionName)) : undefined];
 }
 
 function executeSell(portfolio, params_, history, currentDay, batchGroupId, riskFreeRate) {
@@ -160,7 +160,7 @@ function executeSell(portfolio, params_, history, currentDay, batchGroupId, risk
     };
     return [new Portfolio(portfolio.Cash + proceeds, consumeQuantity(params_.Quantity, sortBy((p) => p.BuyDate, portfolio.Positions, {
         Compare: comparePrimitives,
-    }), empty()), portfolio.CompositeRegistry), (params_.Quantity > 0) ? (new Transaction(currentDay, getTickerFromInstrument(params_.Instrument), "SELL", params_.Quantity, executionPrice, proceeds)) : undefined];
+    }), empty()), portfolio.CompositeRegistry), (params_.Quantity > 0) ? (new Transaction(currentDay, getTickerFromInstrument(params_.Instrument), "SELL", params_.Quantity, executionPrice, proceeds, params_.DefinitionName)) : undefined];
 }
 
 function executeRebalance(portfolio, params_, history, currentDay, riskFreeRate) {

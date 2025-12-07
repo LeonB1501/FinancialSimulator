@@ -1,9 +1,9 @@
 import { Union, Record } from "../fable_modules/fable-library-js.4.27.0/Types.js";
-import { bool_type, array_type, class_type, tuple_type, option_type, union_type, list_type, record_type, float64_type, string_type, int32_type } from "../fable_modules/fable-library-js.4.27.0/Reflection.js";
+import { bool_type, array_type, class_type, tuple_type, union_type, list_type, record_type, option_type, float64_type, string_type, int32_type } from "../fable_modules/fable-library-js.4.27.0/Reflection.js";
 import { PositionExpression_$reflection, AssetReference_$reflection } from "../Language/AST.js";
 
 export class Transaction extends Record {
-    constructor(Date$, Ticker, Type, Quantity, Price, Value) {
+    constructor(Date$, Ticker, Type, Quantity, Price, Value, Tag) {
         super();
         this.Date = (Date$ | 0);
         this.Ticker = Ticker;
@@ -11,11 +11,12 @@ export class Transaction extends Record {
         this.Quantity = Quantity;
         this.Price = Price;
         this.Value = Value;
+        this.Tag = Tag;
     }
 }
 
 export function Transaction_$reflection() {
-    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type]]);
+    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type], ["Tag", option_type(string_type)]]);
 }
 
 export class HestonParameters extends Record {

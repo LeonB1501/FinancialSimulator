@@ -18,7 +18,7 @@ import {
   SimulationProgress,
   SimulationJob,
 } from '../models/simulation.model';
-import { SimulationResults, DrawdownFrequency } from '../models/results.model';
+import { SimulationResults, DrawdownFrequency, HistogramBin } from '../models/results.model';
 
 @Injectable({
   providedIn: 'root'
@@ -111,20 +111,17 @@ export class SimulationService {
       }
     });
 
-    // If no history needed, proceed immediately
     const historyObservable = historyRequests.length > 0 
       ? forkJoin(historyRequests) 
       : of([]);
 
     return historyObservable.pipe(
       switchMap(histories => {
-        // Map history back to tickers
         const historyMap: Record<string, any[]> = {};
         tickersNeedingHistory.forEach((ticker, i) => {
           historyMap[ticker.toLowerCase()] = histories[i];
         });
 
-        // 2. Run Worker
         return this.runWorkerSimulation(strategy, historyMap, startTime);
       }),
       catchError((err: any) => {
@@ -137,7 +134,6 @@ export class SimulationService {
   private executeHistoricBacktest(strategy: Strategy, startTime: number): Observable<any> {
     const s = strategy.scenario as HistoricScenario;
     
-    // Update state to Running (Indeterminate)
     this._state.set(SimulationState.Running);
     this.updateProgress(0, 1, 'Running Historic Backtest on Server...', 0, 0);
 
@@ -148,7 +144,6 @@ export class SimulationService {
             throw new Error(response.error || 'Historic backtest failed');
           }
 
-          // Inject strategyId so the backend can link it correctly when saving
           const resultToSave = {
             ...response,
             strategyId: strategy.id,
@@ -156,7 +151,6 @@ export class SimulationService {
             createdAt: new Date()
           };
 
-          // Save to DB
           return this.saveResultsToBackend(resultToSave).pipe(
             map((savedRecord: any) => ({ ...resultToSave, id: savedRecord.id }))
           );
@@ -178,7 +172,6 @@ export class SimulationService {
     startTime: number
   ): Observable<SimulationResults> {
 
-    // --- DEBUG MODE INTERCEPTION ---
     if (this.USE_SERVER_DEBUG_MODE) {
       console.warn('⚠️ RUNNING IN SERVER DEBUG MODE - WORKER BYPASSED');
       const input = this.mapStrategyToFableInput(strategy, historyMap);
@@ -193,29 +186,19 @@ export class SimulationService {
         })
       );
     }
-    // -------------------------------
 
     return new Observable<SimulationResults>(observer => {
       
       const worker = new Worker(new URL('../../workers/simulation.worker', import.meta.url));
-      
-      // Map to Thoth-compatible JSON
       const input = this.mapStrategyToFableInput(strategy, historyMap);
-
-      // DEBUG: Log the exact payload being sent to the worker
-      console.log('🚀 Sending to Worker:', JSON.stringify(input, null, 2));
 
       worker.onmessage = ({ data }) => {
         if (data.type === 'progress') {
-          // Handle real-time progress updates from the F# engine
           const completed = data.completed as number;
           const total = data.total as number;
           const percent = (completed / total) * 100;
-
-          // Calculate elapsed time
           const elapsedMs = Date.now() - startTime;
 
-          // Estimate remaining time based on current speed
           let estimatedRemainingMs = 0;
           if (completed > 0) {
             const avgTimePerIteration = elapsedMs / completed;
@@ -226,11 +209,7 @@ export class SimulationService {
 
         } else if (data.type === 'success') {
           this._state.set(SimulationState.Processing);
-
-          // Final elapsed time
           const finalElapsedMs = Date.now() - startTime;
-
-          // Update progress to 100%
           this.updateProgress(100, strategy.simulationConfig.iterations, 'Processing results...', finalElapsedMs, 0);
 
           try {
@@ -240,11 +219,9 @@ export class SimulationService {
             // 2. Save to Backend
             this.saveResultsToBackend(results).subscribe({
               next: (savedRecord: any) => {
-                console.log('Results saved successfully with ID:', savedRecord.id);
                 this._state.set(SimulationState.Completed);
                 if (this.currentJob) {
                   this.currentJob.completedAt = new Date();
-                  // Emit final progress with Completed state so queue service can detect completion
                   this.currentJob.progress = {
                     ...this.currentJob.progress,
                     state: SimulationState.Completed,
@@ -256,7 +233,6 @@ export class SimulationService {
                   this.progressSubject.next(this.currentJob.progress);
                 }
 
-                // Return the results
                 observer.next({ ...results, id: savedRecord.id });
                 observer.complete();
               },
@@ -439,19 +415,15 @@ export class SimulationService {
       historicalData.push([ticker, mappedData]);
     });
 
-    // --- FIX: Calculate Trading Days correctly for Historic Mode ---
     let tradingDays = 0;
-    
     if (strategy.mode === SimulationMode.Historic) {
       const s = strategy.scenario as HistoricScenario;
       const start = new Date(s.startDate);
       const end = new Date(s.endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      // Approximation of trading days (5/7 of total days)
       tradingDays = Math.floor(diffDays * (252 / 365)); 
     } else {
-      // Existing logic for Accumulation/Retirement
       tradingDays = (strategy.scenario as any).timelineYears * 252;
     }
 
@@ -482,8 +454,6 @@ export class SimulationService {
   private mapModelToFable(index: Index): any {
     const p = index.parameters as any;
     
-    // FIX: Using PascalCase keys to match F# Record fields exactly for Thoth.Json
-    // FIX: Added null-coalescing (??) defaults for ALL fields to prevent "undefined" JSON errors.
     switch (index.model) {
       case StochasticModel.Heston:
         return ["Heston", {
@@ -495,11 +465,8 @@ export class SimulationService {
           Mu: p.mu ?? 0.0,
           Epsilon: p.epsilon ?? 0.0001
         }];
-      
       case StochasticModel.GBM:
-        // Arrays are positional, so no key mapping needed here
         return ["GeometricBrownianMotion", p.mu ?? 0.08, p.sigma ?? 0.2];
-        
       case StochasticModel.GARCH:
         return ["Garch", {
           Omega: p.omega ?? 0.000002,
@@ -508,13 +475,11 @@ export class SimulationService {
           Mu: p.mu ?? 0.08,
           InitialVol: p.initialVol ?? 0.2
         }];
-        
       case StochasticModel.BlockedBootstrap:
         return ["BlockedBootstrap", {
           BlockSize: p.blockSize || 20,
           HistoricalDataId: index.symbol.toLowerCase()
         }];
-
       case StochasticModel.RegimeSwitching:
         return ["RegimeSwitching", 0, (p.regimes || []).map((r: any) => ({
             Name: r.name,
@@ -522,7 +487,6 @@ export class SimulationService {
             Sigma: r.sigma,
             TransitionProbs: p.transitionMatrix ? p.transitionMatrix[0] : [0.9, 0.1]
         }))];
-        
       default:
         return ["GeometricBrownianMotion", 0.08, 0.2];
     }
@@ -550,32 +514,63 @@ export class SimulationService {
       });
     });
 
-    // --- FIX: Map TimeStats correctly instead of null ---
     const timeStats = report.TimeStats;
     let mappedTimeStats = null;
     if (timeStats && timeStats.Mean > 0) {
       mappedTimeStats = {
-        min: 0,
-        max: 0,
-        mean: timeStats.Mean,
-        geometricMean: timeStats.GeometricMean,
-        median: timeStats.Median,
-        stdDev: 0,
-        skewness: 0,
-        kurtosis: 0,
+        min: 0, max: 0, mean: timeStats.Mean, geometricMean: timeStats.GeometricMean, median: timeStats.Median,
+        stdDev: 0, skewness: 0, kurtosis: 0,
         percentiles: {
-          p1: 0,
-          p5: 0,
+          p1: 0, p5: 0,
           p10: this.getDecile(timeStats.Deciles, 10),
           p25: this.getDecile(timeStats.Deciles, 25) || this.getDecile(timeStats.Deciles, 20),
           p50: timeStats.Median,
           p75: this.getDecile(timeStats.Deciles, 75) || this.getDecile(timeStats.Deciles, 80),
           p90: this.getDecile(timeStats.Deciles, 90),
-          p95: 0,
-          p99: 0
+          p95: 0, p99: 0
         }
       };
     }
+
+    // --- NEW: Process Recovery Distribution ---
+    // report.RecoveryDistribution is Map<int, int> (Days -> Count)
+    // We need to bin this into logical groups
+    const recoveryCounts = report.RecoveryDistribution;
+    let probOneYearPlus = 0;
+    const recoveryBins: HistogramBin[] = [
+        { label: '< 1 Mo', rangeStart: 0, rangeEnd: 21, count: 0, frequency: 0 },
+        { label: '1-6 Mo', rangeStart: 21, rangeEnd: 126, count: 0, frequency: 0 },
+        { label: '6-12 Mo', rangeStart: 126, rangeEnd: 252, count: 0, frequency: 0 },
+        { label: '1-3 Yr', rangeStart: 252, rangeEnd: 756, count: 0, frequency: 0 },
+        { label: '> 3 Yr', rangeStart: 756, rangeEnd: 99999, count: 0, frequency: 0 }
+    ];
+
+    let totalRuns = strategy.simulationConfig.iterations;
+
+    // Handle Thoth Map serialization (array of tuples vs object)
+    const recoveryEntries = Array.isArray(recoveryCounts) ? recoveryCounts : Object.entries(recoveryCounts);
+
+    recoveryEntries.forEach((entry: any) => {
+        // Entry is either [days, count] or ["days", count]
+        const days = Number(Array.isArray(entry) ? entry[0] : entry[0]);
+        const count = Number(Array.isArray(entry) ? entry[1] : entry[1]);
+
+        if (days > 252) probOneYearPlus += count;
+
+        const bin = recoveryBins.find(b => days >= b.rangeStart && days < b.rangeEnd);
+        if (bin) bin.count += count;
+    });
+
+    // Calc Frequencies
+    recoveryBins.forEach(b => b.frequency = b.count / totalRuns);
+    probOneYearPlus = probOneYearPlus / totalRuns;
+
+    // --- NEW: Process Drawdown Cone ---
+    // report.DrawdownCone is Map<int, float[]> (Percentile -> Array)
+    const ddCone = report.DrawdownCone;
+    const coneP10 = this.getMapValue(ddCone, 10) || [];
+    const coneP50 = this.getMapValue(ddCone, 50) || [];
+    const coneP90 = this.getMapValue(ddCone, 90) || [];
 
     return {
       id: crypto.randomUUID(), 
@@ -594,26 +589,21 @@ export class SimulationService {
         targetWealth: (strategy.scenario as any).targetWealth,
       },
       successProbability: report.ProbabilityOfSuccess,
-      ruinProbability: report.ProbabilityOfRuin, // <--- MAPPED HERE
+      ruinProbability: report.ProbabilityOfRuin, 
       terminalWealthStats: {
-        min: 0, 
-        max: 0, 
+        min: 0, max: 0, 
         mean: report.WealthStats.Mean,
         geometricMean: report.WealthStats.GeometricMean,
         median: report.WealthStats.Median,
-        stdDev: 0, 
-        skewness: 0,
-        kurtosis: 0,
+        stdDev: 0, skewness: 0, kurtosis: 0,
         percentiles: {
-          p1: 0,
-          p5: 0,
+          p1: 0, p5: 0,
           p10: this.getDecile(report.WealthStats.Deciles, 10),
           p25: this.getDecile(report.WealthStats.Deciles, 20),
           p50: report.WealthStats.Median,
           p75: this.getDecile(report.WealthStats.Deciles, 80),
           p90: this.getDecile(report.WealthStats.Deciles, 90),
-          p95: 0,
-          p99: 0
+          p95: 0, p99: 0
         }
       },
       timeToTargetStats: mappedTimeStats,
@@ -632,6 +622,17 @@ export class SimulationService {
         averageRecoveryTime: 0,
         longestDrawdown: 0
       },
+      // --- NEW FIELDS MAPPED ---
+      drawdownCone: {
+          p10: coneP10,
+          p50: coneP50,
+          p90: coneP90
+      },
+      recoveryAnalysis: {
+          probabilityOneYearPlus: probOneYearPlus,
+          bins: recoveryBins
+      },
+      // -------------------------
       detailedStats: { metrics: [] },
       samplePaths: {
         p10: this.mapPath(report.SamplePaths[0], report.Dates),
@@ -651,6 +652,16 @@ export class SimulationService {
       return found ? found[1] : 0;
     }
     return deciles[key.toString()] || 0;
+  }
+  
+  // Helper to get value from Fable Map (Array of pairs or Object)
+  private getMapValue(mapObj: any, key: number): any {
+      if (!mapObj) return null;
+      if (Array.isArray(mapObj)) {
+          const found = mapObj.find((pair: any) => pair[0] === key);
+          return found ? found[1] : null;
+      }
+      return mapObj[key.toString()];
   }
 
   private mapPath(values: number[], dates: string[]): any {

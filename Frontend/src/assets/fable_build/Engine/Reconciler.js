@@ -1,5 +1,5 @@
 import { Union } from "../fable_modules/fable-library-js.4.27.0/Types.js";
-import { Portfolio, PositionInstance, PositionInstance_$reflection } from "./EngineTypes.js";
+import { Transaction, Portfolio, PositionInstance, PositionInstance_$reflection } from "./EngineTypes.js";
 import { union_type, float64_type } from "../fable_modules/fable-library-js.4.27.0/Reflection.js";
 import { map, sortBy, mapIndexed, choose, singleton, item as item_1, tryFindIndex, filter, tryFind, empty, reverse, append, cons, head as head_1, tail as tail_1, isEmpty } from "../fable_modules/fable-library-js.4.27.0/List.js";
 import { price } from "../Simulation/PricingModels.js";
@@ -197,7 +197,6 @@ function matchPositions(positions, history, day, r) {
                     return false;
                 }
             }, groupPositions);
-            let remainingShortCalls = empty();
             const enumerator_1 = getEnumerator(shortCalls);
             try {
                 while (enumerator_1["System.Collections.IEnumerator.MoveNext"]()) {
@@ -338,10 +337,36 @@ function matchPositions(positions, history, day, r) {
     return toList(candidates);
 }
 
+function getTickerName(p) {
+    const matchValue = p.Instrument;
+    switch (matchValue.tag) {
+        case 1: {
+            const matchValue_1 = matchValue.fields[0].Underlying;
+            if (matchValue_1.tag === 1) {
+                return matchValue_1.fields[0];
+            }
+            else {
+                return matchValue_1.fields[0];
+            }
+        }
+        case 2:
+            return "COMPOUND";
+        default: {
+            const assetRef = matchValue.fields[0];
+            if (assetRef.tag === 1) {
+                return `${assetRef.fields[1]}x_${assetRef.fields[0]}`;
+            }
+            else {
+                return assetRef.fields[0];
+            }
+        }
+    }
+}
+
 export function reconcileCash(portfolio, requiredCash, history, day, r) {
     const deficit = requiredCash - portfolio.Cash;
     if (deficit <= 0) {
-        return new Portfolio(portfolio.Cash - requiredCash, portfolio.Positions, portfolio.CompositeRegistry);
+        return [new Portfolio(portfolio.Cash - requiredCash, portfolio.Positions, portfolio.CompositeRegistry), empty()];
     }
     else {
         const sortedCandidates = sortBy((c_1) => {
@@ -366,6 +391,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r) {
         let reductions = empty_1({
             Compare: comparePrimitives,
         });
+        let transactions = empty();
         const enumerator = getEnumerator(sortedCandidates);
         try {
             while (enumerator["System.Collections.IEnumerator.MoveNext"]()) {
@@ -381,6 +407,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r) {
                         totalProceeds = (totalProceeds + proceeds_1);
                         reductions = FSharpMap__Add(reductions, shortPos.Id, -unitsToClose + defaultArg(FSharpMap__TryFind(reductions, shortPos.Id), 0));
                         reductions = FSharpMap__Add(reductions, longPos.Id, unitsToClose + defaultArg(FSharpMap__TryFind(reductions, longPos.Id), 0));
+                        transactions = cons(new Transaction(day, `SPREAD_${getTickerName(longPos)}`, "SELL", unitsToClose, 0, proceeds_1, "LIQUIDATION"), transactions);
                     }
                     else {
                         const p_1 = cand.fields[0];
@@ -390,6 +417,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r) {
                         currentDeficit = (currentDeficit - proceeds);
                         totalProceeds = (totalProceeds + proceeds);
                         reductions = FSharpMap__Add(reductions, p_1.Id, qtyToSell + defaultArg(FSharpMap__TryFind(reductions, p_1.Id), 0));
+                        transactions = cons(new Transaction(day, getTickerName(p_1), "SELL", qtyToSell, getPrice(p_1, history, day, r), proceeds, "LIQUIDATION"), transactions);
                     }
                 }
             }
@@ -398,7 +426,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r) {
             disposeSafe(enumerator);
         }
         if (currentDeficit > 0) {
-            return new Portfolio(0, empty(), portfolio.CompositeRegistry);
+            return [new Portfolio(0, empty(), portfolio.CompositeRegistry), empty()];
         }
         else {
             const newPositions = filter((p_3) => (Math.abs(p_3.Quantity) > 1E-09), map((p_2) => {
@@ -410,7 +438,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r) {
                     return new PositionInstance(p_2.Id, p_2.GroupId, p_2.DefinitionName, p_2.ComponentName, p_2.ParentId, p_2.BuyPrice, p_2.BuyDate, p_2.Quantity - matchValue, p_2.Instrument);
                 }
             }, portfolio.Positions));
-            return new Portfolio(totalProceeds - deficit, newPositions, portfolio.CompositeRegistry);
+            return [new Portfolio(totalProceeds - deficit, newPositions, portfolio.CompositeRegistry), transactions];
         }
     }
 }

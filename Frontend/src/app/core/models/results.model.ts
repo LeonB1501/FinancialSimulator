@@ -26,6 +26,10 @@ export interface SimulationResults {
   // Drawdown analysis
   drawdownAnalysis: DrawdownAnalysis;
   
+  // NEW: Monte Carlo specific visual data
+  drawdownCone: DrawdownCone;
+  recoveryAnalysis: RecoveryAnalysis;
+  
   // Detailed statistics table
   detailedStats: DetailedStatistics;
   
@@ -49,6 +53,7 @@ export interface HistoricTransaction {
   quantity: number;
   price: number;
   value: number;
+  tag?: string;
 }
 
 export interface HistoricBacktestResults {
@@ -149,6 +154,17 @@ export interface DrawdownFrequency {
   label: string;
   frequency: number;
   count: number;
+}
+
+export interface DrawdownCone {
+  p10: number[]; // Best case (lowest drawdown)
+  p50: number[]; // Median case
+  p90: number[]; // Worst case (highest drawdown)
+}
+
+export interface RecoveryAnalysis {
+  probabilityOneYearPlus: number; // Chance of being underwater > 1 year
+  bins: HistogramBin[];
 }
 
 // ============================================

@@ -1,10 +1,11 @@
-import { initialize, zip, sortBy, averageBy, choose, map as map_1, sumBy, average, sort, item } from "../fable_modules/fable-library-js.4.27.0/Array.js";
-import { FSharpMap__get_Item, FSharpMap__ContainsKey, ofList, empty } from "../fable_modules/fable-library-js.4.27.0/Map.js";
-import { comparePrimitives } from "../fable_modules/fable-library-js.4.27.0/Util.js";
+import { zip, sortBy, averageBy, choose, setItem, sortInPlace, initialize, map as map_1, sumBy, average, sort, item } from "../fable_modules/fable-library-js.4.27.0/Array.js";
+import { FSharpMap__get_Item, FSharpMap__ContainsKey, ofArray as ofArray_1, ofList, empty } from "../fable_modules/fable-library-js.4.27.0/Map.js";
+import { numberHash, comparePrimitives } from "../fable_modules/fable-library-js.4.27.0/Util.js";
 import { SimulationReport, DistributionStats } from "./AnalyticsTypes.js";
 import { ofArray, map } from "../fable_modules/fable-library-js.4.27.0/List.js";
 import { toList } from "../fable_modules/fable-library-js.4.27.0/Seq.js";
 import { rangeDouble } from "../fable_modules/fable-library-js.4.27.0/Range.js";
+import { Array_countBy } from "../fable_modules/fable-library-js.4.27.0/Seq2.js";
 import { addDays } from "../fable_modules/fable-library-js.4.27.0/Date.js";
 
 function calculatePercentile(sortedData, percentile) {
@@ -50,6 +51,74 @@ function calculateDistribution(data) {
             Compare: comparePrimitives,
         }));
     }
+}
+
+function calculateDrawdownSeries(curve) {
+    let peak = item(0, curve);
+    return map_1((v) => {
+        if (v > peak) {
+            peak = v;
+        }
+        if (peak > 0) {
+            return (peak - v) / peak;
+        }
+        else {
+            return 0;
+        }
+    }, curve, Float64Array);
+}
+
+function calculateDrawdownCone(runs) {
+    const days = item(0, runs).EquityCurve.length | 0;
+    const runCount = runs.length | 0;
+    const allDrawdowns = map_1((r) => calculateDrawdownSeries(r.EquityCurve), runs);
+    const p10Line = new Float64Array(days);
+    const p50Line = new Float64Array(days);
+    const p90Line = new Float64Array(days);
+    for (let d = 0; d <= (days - 1); d++) {
+        const dayValues = initialize(runCount, (i) => item(d, item(i, allDrawdowns)), Float64Array);
+        sortInPlace(dayValues, {
+            Compare: comparePrimitives,
+        });
+        setItem(p10Line, d, calculatePercentile(dayValues, 10));
+        setItem(p50Line, d, calculatePercentile(dayValues, 50));
+        setItem(p90Line, d, calculatePercentile(dayValues, 90));
+    }
+    return ofList(ofArray([[10, p10Line], [50, p50Line], [90, p90Line]]), {
+        Compare: comparePrimitives,
+    });
+}
+
+function calculateMaxUnderwaterDays(curve) {
+    let peak = item(0, curve);
+    let maxDuration = 0;
+    let currentDuration = 0;
+    for (let idx = 0; idx <= (curve.length - 1); idx++) {
+        const v = item(idx, curve);
+        if (v >= peak) {
+            peak = v;
+            if (currentDuration > maxDuration) {
+                maxDuration = (currentDuration | 0);
+            }
+            currentDuration = 0;
+        }
+        else {
+            currentDuration = ((currentDuration + 1) | 0);
+        }
+    }
+    if (currentDuration > maxDuration) {
+        maxDuration = (currentDuration | 0);
+    }
+    return maxDuration | 0;
+}
+
+function calculateRecoveryDistribution(runs) {
+    return ofArray_1(Array_countBy((x) => x, map_1((r) => calculateMaxUnderwaterDays(r.EquityCurve), runs, Int32Array), {
+        Equals: (x_1, y) => (x_1 === y),
+        GetHashCode: numberHash,
+    }), {
+        Compare: comparePrimitives,
+    });
 }
 
 export function aggregate(runs, metrics, config, startDate) {
@@ -127,6 +196,6 @@ export function aggregate(runs, metrics, config, startDate) {
         Compare: comparePrimitives,
     });
     const getPathAtPercentile = (p) => item(~~((p / 100) * (count - 1)), sortedByWealth)[1].EquityCurve;
-    return new SimulationReport(wealthStats, timeStats, successCount / count, ruinCount / count, avgMaxDD, avgSharpe, avgSortino, avgVol, ddFrequencies, (runs.length < 5) ? map_1((r) => r.EquityCurve, runs) : [getPathAtPercentile(10), getPathAtPercentile(25), getPathAtPercentile(50), getPathAtPercentile(75), getPathAtPercentile(90)], initialize(item(0, runs).EquityCurve.length, (i_4) => addDays(startDate, i_4)));
+    return new SimulationReport(wealthStats, timeStats, successCount / count, ruinCount / count, avgMaxDD, avgSharpe, avgSortino, avgVol, ddFrequencies, (runs.length < 5) ? map_1((r) => r.EquityCurve, runs) : [getPathAtPercentile(10), getPathAtPercentile(25), getPathAtPercentile(50), getPathAtPercentile(75), getPathAtPercentile(90)], initialize(item(0, runs).EquityCurve.length, (i_4) => addDays(startDate, i_4)), calculateDrawdownCone(runs), calculateRecoveryDistribution(runs));
 }
 

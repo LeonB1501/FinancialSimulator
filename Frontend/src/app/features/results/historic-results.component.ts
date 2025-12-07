@@ -1,45 +1,35 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, DatePipe, DecimalPipe, CurrencyPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ChartConfiguration, ChartData } from 'chart.js';
+import { MatTabsModule, MatTabGroup } from '@angular/material/tabs';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
+import { ChartConfiguration, ChartData, TooltipItem } from 'chart.js';
 import { NgChartsModule } from 'ng2-charts';
+
 import { HeaderComponent } from '@shared/components/header/header.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import { ReturnsHeatmapComponent } from '@shared/components/returns-heatmap/returns-heatmap.component';
 import { CompactCurrencyPipe } from '@shared/pipes/compact-currency.pipe';
+import { PremiumDialogComponent } from '@shared/components/premium-dialog/premium-dialog.component';
+
 import { ApiService } from '@core/services/api.service';
 import { ThemeService } from '@core/services/theme.service';
-
-interface HistoricTransaction {
-  day: number;
-  date: Date;
-  ticker: string;
-  type: 'BUY' | 'SELL';
-  quantity: number;
-  price: number;
-  value: number;
-}
-
-interface HistoricBacktestResult {
-  success: boolean;
-  error?: string;
-  equityCurve: number[];
-  benchmarkCurve: number[];
-  drawdownCurve: number[];
-  dates: string[];
-  transactions: HistoricTransaction[];
-  totalReturn: number;
-  benchmarkReturn: number;
-  maxDrawdown: number;
-  sharpeRatio: number;
-  volatility: number;
-}
+import { ExportService, PdfSection } from '@core/services/export.service';
+import { PermissionsService } from '@core/services/permissions.service';
+import { NotificationService } from '@core/services/notification.service';
+import { HistoricBacktestResults, HistoricTransaction } from '@core/models/results.model';
 
 @Component({
   selector: 'qs-historic-results',
   standalone: true,
   imports: [
     CommonModule, RouterLink, DatePipe, DecimalPipe, CurrencyPipe,
-    NgChartsModule, HeaderComponent, LoadingSpinnerComponent, CompactCurrencyPipe
+    MatTabsModule, NgChartsModule, MatMenuModule, MatButtonModule, MatIconModule,
+    HeaderComponent, LoadingSpinnerComponent, 
+    ReturnsHeatmapComponent, CompactCurrencyPipe
   ],
   template: `
     <qs-header />
@@ -70,7 +60,6 @@ interface HistoricBacktestResult {
             
             <!-- Key Metrics -->
             <div class="space-y-4">
-              <!-- Total Return -->
               <div class="p-4 rounded-xl" [class]="results()!.totalReturn >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'">
                 <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Strategy Return</p>
                 <p class="text-3xl font-bold" [class]="results()!.totalReturn >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
@@ -78,7 +67,6 @@ interface HistoricBacktestResult {
                 </p>
               </div>
               
-              <!-- Benchmark Return -->
               <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
                 <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Benchmark Return</p>
                 <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">
@@ -86,7 +74,6 @@ interface HistoricBacktestResult {
                 </p>
               </div>
               
-              <!-- Alpha -->
               <div class="p-4 rounded-xl" [class]="alpha() >= 0 ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-surface-50 dark:bg-surface-700/50'">
                 <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Alpha (vs Benchmark)</p>
                 <p class="text-2xl font-bold" [class]="alpha() >= 0 ? 'text-amber-600 dark:text-amber-400' : 'text-surface-600 dark:text-surface-400'">
@@ -94,7 +81,6 @@ interface HistoricBacktestResult {
                 </p>
               </div>
               
-              <!-- Max Drawdown -->
               <div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl">
                 <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Max Drawdown</p>
                 <p class="text-2xl font-bold text-red-600 dark:text-red-400">
@@ -102,76 +88,201 @@ interface HistoricBacktestResult {
                 </p>
               </div>
               
-              <!-- Sharpe Ratio -->
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
+                  <p class="text-xs text-surface-500 dark:text-surface-400 mb-1">Sharpe</p>
+                  <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
+                    {{ results()!.sharpeRatio | number:'1.2-2' }}
+                  </p>
+                </div>
+                <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
+                  <p class="text-xs text-surface-500 dark:text-surface-400 mb-1">Volatility</p>
+                  <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
+                    {{ (results()!.volatility * 100) | number:'1.1-1' }}%
+                  </p>
+                </div>
+              </div>
+
               <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
-                <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Sharpe Ratio</p>
-                <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">
-                  {{ results()!.sharpeRatio | number:'1.2-2' }}
+                <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Trades</p>
+                <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
+                  {{ results()!.totalTrades }}
                 </p>
-              </div>
-              
-              <!-- Volatility -->
-              <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
-                <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Annual Volatility</p>
-                <p class="text-2xl font-bold text-surface-900 dark:text-surface-100">
-                  {{ (results()!.volatility * 100) | number:'1.1-1' }}%
-                </p>
-              </div>
-            </div>
-            
-            <!-- Trade Summary -->
-            <div class="mt-6 pt-6 border-t border-surface-200 dark:border-surface-700">
-              <p class="text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">Trade Summary</p>
-              <div class="flex justify-between text-sm">
-                <span class="text-surface-500 dark:text-surface-400">Total Trades</span>
-                <span class="font-medium text-surface-900 dark:text-surface-100">{{ results()!.transactions.length }}</span>
-              </div>
-              <div class="flex justify-between text-sm mt-1">
-                <span class="text-surface-500 dark:text-surface-400">Buy Orders</span>
-                <span class="font-medium text-green-600 dark:text-green-400">{{ buyCount() }}</span>
-              </div>
-              <div class="flex justify-between text-sm mt-1">
-                <span class="text-surface-500 dark:text-surface-400">Sell Orders</span>
-                <span class="font-medium text-red-600 dark:text-red-400">{{ sellCount() }}</span>
               </div>
             </div>
           </aside>
 
           <!-- Main Content -->
-          <main class="flex-1 lg:ml-[320px] p-6 lg:p-10 transition-all duration-300">
-            <div class="mb-8">
+          <main class="flex-1 lg:ml-[320px] p-6 lg:p-10 transition-all duration-300 min-w-0">
+            <div class="mb-8 flex justify-between items-center">
               <h1 class="text-2xl font-bold text-surface-900 dark:text-surface-100">Historic Backtest Results</h1>
-              <p class="text-surface-600 dark:text-surface-400 mt-1">
-                Deterministic simulation against real market data
-              </p>
+
+              <!-- EXPORT BUTTON -->
+              <div class="relative">
+                <button
+                  [matMenuTriggerFor]="exportMenu"
+                  class="group flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
+                         bg-white dark:bg-surface-800 
+                         border border-surface-200 dark:border-surface-700
+                         text-surface-700 dark:text-surface-200
+                         hover:border-accent-500 dark:hover:border-accent-500
+                         hover:shadow-soft dark:hover:shadow-none
+                         active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  [disabled]="isExporting()"
+                >
+                  <!-- Loading Spinner -->
+                  @if (isExporting()) {
+                    <svg class="animate-spin -ml-1 mr-1 h-4 w-4 text-accent-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Generating...</span>
+                  } @else {
+                    <!-- Download Icon -->
+                    <svg class="w-4 h-4 text-surface-500 group-hover:text-accent-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    <span>Export Report</span>
+                    <!-- Chevron -->
+                    <svg class="w-4 h-4 text-surface-400 group-hover:text-surface-600 dark:group-hover:text-surface-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  }
+                </button>
+                
+                <!-- Styled Menu -->
+                <mat-menu #exportMenu="matMenu" xPosition="before" class="mt-2">
+                  <button mat-menu-item (click)="onExport('pdf')" class="group">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center group-hover:bg-red-100 dark:group-hover:bg-red-900/40 transition-colors">
+                        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                      </div>
+                      <div class="flex flex-col leading-tight">
+                        <span class="font-medium text-surface-900 dark:text-surface-100">PDF Report</span>
+                        <span class="text-xs text-surface-500">Charts & Analysis</span>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button mat-menu-item (click)="onExport('xlsx')" class="group">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-green-900/40 transition-colors">
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                      </div>
+                      <div class="flex flex-col leading-tight">
+                        <span class="font-medium text-surface-900 dark:text-surface-100">Excel Workbook</span>
+                        <span class="text-xs text-surface-500">Calculations & Data</span>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button mat-menu-item (click)="onExport('csv')" class="group">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
+                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                        </svg>
+                      </div>
+                      <div class="flex flex-col leading-tight">
+                        <span class="font-medium text-surface-900 dark:text-surface-100">Raw CSV</span>
+                        <span class="text-xs text-surface-500">Plain text data</span>
+                      </div>
+                    </div>
+                  </button>
+                </mat-menu>
+              </div>
             </div>
 
-            <div class="grid gap-6">
-              <!-- Equity Curve Chart -->
-              <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none transition-colors duration-300">
-                <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-2">Equity Curve</h3>
-                <p class="text-sm text-surface-500 dark:text-surface-400 mb-4">Strategy vs Benchmark with trade markers</p>
-                <div class="chart-container" style="height: 400px;">
-                  <canvas baseChart [data]="equityCurveData()" [options]="lineChartOptions()" type="line"></canvas>
-                </div>
-              </div>
-
-              <!-- Drawdown Chart -->
-              <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 transition-colors duration-300">
-                <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-2">Drawdown</h3>
-                <p class="text-sm text-surface-500 dark:text-surface-400 mb-4">Percentage decline from peak equity</p>
-                <div class="chart-container" style="height: 250px;">
-                  <canvas baseChart [data]="drawdownData()" [options]="areaChartOptions()" type="line"></canvas>
-                </div>
-              </div>
-
-              <!-- Trade Log Table -->
-              <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 transition-colors duration-300">
-                <div class="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100">Trade Log</h3>
-                    <p class="text-sm text-surface-500 dark:text-surface-400">Complete transaction history</p>
+            <!-- Charts Section with Tabs -->
+            <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none mb-6">
+              <mat-tab-group #tabGroup animationDuration="0ms" class="qs-tabs">
+                <mat-tab label="Equity Curve">
+                  <div class="pt-4" #equityChartContainer>
+                    <div class="chart-container" style="height: 450px;">
+                      <canvas baseChart [data]="equityCurveData()" [options]="lineChartOptions()" type="line"></canvas>
+                    </div>
+                    <div class="mt-4 flex items-center justify-center space-x-6 text-sm text-surface-500 dark:text-surface-400">
+                      <div class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span> Buy Trade
+                      </div>
+                      <div class="flex items-center">
+                        <span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span> Sell Trade
+                      </div>
+                    </div>
                   </div>
+                </mat-tab>
+                
+                <mat-tab label="Drawdown">
+                  <div class="pt-4" #drawdownChartContainer>
+                    <div class="chart-container" style="height: 450px;">
+                      <canvas baseChart [data]="drawdownData()" [options]="areaChartOptions()" type="line"></canvas>
+                    </div>
+                  </div>
+                </mat-tab>
+
+                <mat-tab label="Rolling Volatility">
+                  <div class="pt-4" #rollingVolChartContainer>
+                    <div class="chart-container" style="height: 450px;">
+                      <canvas baseChart [data]="rollingVolData()" [options]="lineChartOptions()" type="line"></canvas>
+                    </div>
+                    <p class="text-center text-xs text-surface-500 mt-2">6-Month Rolling Annualized Volatility</p>
+                  </div>
+                </mat-tab>
+
+                <mat-tab label="Rolling Sharpe">
+                  <div class="pt-4" #rollingSharpeChartContainer>
+                    <div class="chart-container" style="height: 450px;">
+                      <canvas baseChart [data]="rollingSharpeData()" [options]="lineChartOptions()" type="line"></canvas>
+                    </div>
+                    <p class="text-center text-xs text-surface-500 mt-2">12-Month Rolling Sharpe Ratio</p>
+                  </div>
+                </mat-tab>
+              </mat-tab-group>
+            </div>
+
+            <!-- Two Column Section -->
+            <div class="grid lg:grid-cols-2 gap-6 mb-6">
+              <!-- Monthly Returns Heatmap -->
+              <div #heatmapContainer class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none">
+                <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Monthly Returns</h3>
+                <qs-returns-heatmap 
+                  [dates]="results()!.dates"
+                  [values]="results()!.equityCurve"
+                />
+              </div>
+
+              <!-- Trade Statistics -->
+              <div #statsContainer class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none">
+                <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">Trade Statistics</h3>
+                <div class="space-y-4">
+                  <div class="flex justify-between items-center p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg">
+                    <span class="text-surface-600 dark:text-surface-400">Total Trades</span>
+                    <span class="font-bold text-surface-900 dark:text-surface-100">{{ results()!.transactions.length }}</span>
+                  </div>
+                  <div class="flex justify-between items-center p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg">
+                    <span class="text-surface-600 dark:text-surface-400">Avg Trades / Year</span>
+                    <span class="font-bold text-surface-900 dark:text-surface-100">
+                      {{ (results()!.transactions.length / (results()!.equityCurve.length / 252)) | number:'1.1-1' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between items-center p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg">
+                    <span class="text-surface-600 dark:text-surface-400">Buy / Sell Ratio</span>
+                    <span class="font-bold text-surface-900 dark:text-surface-100">
+                      {{ buyCount() }}:{{ sellCount() }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Trade Log -->
+            <div #tradeLogContainer class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none">
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100">Trade Log</h3>
                   <div class="flex items-center space-x-2">
                     <button 
                       (click)="filterType.set('all')"
@@ -196,6 +307,7 @@ interface HistoricBacktestResult {
                     <thead>
                       <tr class="border-b border-surface-200 dark:border-surface-700">
                         <th class="text-left py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Date</th>
+                        <th class="text-left py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Context</th>
                         <th class="text-left py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Ticker</th>
                         <th class="text-left py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Action</th>
                         <th class="text-right py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Quantity</th>
@@ -207,6 +319,15 @@ interface HistoricBacktestResult {
                       @for (txn of filteredTransactions(); track txn.day) {
                         <tr class="border-b border-surface-100 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-700/50">
                           <td class="py-3 px-4 text-sm text-surface-900 dark:text-surface-100">{{ txn.date | date:'mediumDate' }}</td>
+                          <td class="py-3 px-4 text-sm text-surface-500 dark:text-surface-400">
+                             @if (txn.tag) {
+                               <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-surface-100 dark:bg-surface-700 text-surface-800 dark:text-surface-300">
+                                 {{ txn.tag }}
+                               </span>
+                             } @else {
+                               <span class="text-surface-400 text-xs italic">-</span>
+                             }
+                          </td>
                           <td class="py-3 px-4 text-sm text-surface-900 dark:text-surface-100 font-medium">{{ txn.ticker.toUpperCase() }}</td>
                           <td class="py-3 px-4">
                             <span 
@@ -223,7 +344,7 @@ interface HistoricBacktestResult {
                       }
                       @if (filteredTransactions().length === 0) {
                         <tr>
-                          <td colspan="6" class="py-8 text-center text-surface-500 dark:text-surface-400">
+                          <td colspan="7" class="py-8 text-center text-surface-500 dark:text-surface-400">
                             No transactions found
                           </td>
                         </tr>
@@ -242,8 +363,8 @@ interface HistoricBacktestResult {
                     </button>
                   </div>
                 }
-              </div>
             </div>
+
           </main>
         </div>
       }
@@ -254,10 +375,25 @@ export class HistoricResultsComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ApiService);
   private readonly themeService = inject(ThemeService);
+  private readonly exportService = inject(ExportService);
+  private readonly permissions = inject(PermissionsService);
+  private readonly dialog = inject(MatDialog);
+  private readonly notify = inject(NotificationService);
 
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
-  readonly results = signal<HistoricBacktestResult | null>(null);
+  readonly results = signal<HistoricBacktestResults | null>(null);
+  readonly isExporting = signal(false);
+
+  @ViewChild('tabGroup') tabGroup!: MatTabGroup;
+  @ViewChild('equityChartContainer') equityChartContainer!: ElementRef;
+  @ViewChild('drawdownChartContainer') drawdownChartContainer!: ElementRef;
+  @ViewChild('rollingVolChartContainer') rollingVolChartContainer!: ElementRef;
+  @ViewChild('rollingSharpeChartContainer') rollingSharpeChartContainer!: ElementRef;
+  @ViewChild('heatmapContainer') heatmapContainer!: ElementRef;
+  @ViewChild('statsContainer') statsContainer!: ElementRef;
+  @ViewChild('tradeLogContainer') tradeLogContainer!: ElementRef;
+
   readonly filterType = signal<'all' | 'BUY' | 'SELL'>('all');
   readonly showAllTransactions = signal(false);
 
@@ -289,6 +425,173 @@ export class HistoricResultsComponent implements OnInit {
     return txns;
   });
 
+  readonly dailyReturns = computed(() => {
+    const equity = this.results()?.equityCurve;
+    if (!equity || equity.length < 2) return [];
+    
+    const returns: number[] = [];
+    for (let i = 1; i < equity.length; i++) {
+      const prev = equity[i-1];
+      const curr = equity[i];
+      returns.push(prev > 0 ? (curr - prev) / prev : 0);
+    }
+    return returns;
+  });
+
+  readonly rollingVolData = computed((): ChartData<'line'> => {
+    const returns = this.dailyReturns();
+    if (returns.length === 0) return { labels: [], datasets: [] };
+
+    const windowSize = 126;
+    const rollingVol: number[] = [];
+    for (let i = 0; i < windowSize; i++) rollingVol.push(NaN);
+
+    for (let i = windowSize; i < returns.length; i++) {
+      const slice = returns.slice(i - windowSize, i);
+      const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+      const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (slice.length - 1);
+      const stdDev = Math.sqrt(variance);
+      rollingVol.push(stdDev * Math.sqrt(252));
+    }
+    
+    const dates = this.results()?.dates.slice(1) || [];
+
+    return {
+      labels: this.generateDateLabels(dates.map(d => d.toISOString())),
+      datasets: [{
+        label: '6-Month Rolling Volatility',
+        data: rollingVol,
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        fill: true,
+        pointRadius: 0,
+        borderWidth: 1.5
+      }]
+    };
+  });
+
+  readonly rollingSharpeData = computed((): ChartData<'line'> => {
+    const returns = this.dailyReturns();
+    if (returns.length === 0) return { labels: [], datasets: [] };
+
+    const windowSize = 252;
+    const rollingSharpe: number[] = [];
+    for (let i = 0; i < windowSize; i++) rollingSharpe.push(NaN);
+
+    for (let i = windowSize; i < returns.length; i++) {
+      const slice = returns.slice(i - windowSize, i);
+      const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+      const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (slice.length - 1);
+      const stdDev = Math.sqrt(variance);
+      
+      if (stdDev > 0) {
+        const annualizedReturn = mean * 252;
+        const annualizedVol = stdDev * Math.sqrt(252);
+        rollingSharpe.push((annualizedReturn - 0.04) / annualizedVol);
+      } else {
+        rollingSharpe.push(0);
+      }
+    }
+
+    const dates = this.results()?.dates.slice(1) || [];
+
+    return {
+      labels: this.generateDateLabels(dates.map(d => d.toISOString())),
+      datasets: [{
+        label: '12-Month Rolling Sharpe',
+        data: rollingSharpe,
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        pointRadius: 0,
+        borderWidth: 1.5
+      }]
+    };
+  });
+
+  readonly equityCurveData = computed((): ChartData<'line'> => {
+    const r = this.results();
+    if (!r) return { labels: [], datasets: [] };
+
+    const pointRadius: number[] = new Array(r.equityCurve.length).fill(0);
+    const pointStyle: any[] = new Array(r.equityCurve.length).fill('circle');
+    const pointBackgroundColor: string[] = new Array(r.equityCurve.length).fill('transparent');
+    const pointRotation: number[] = new Array(r.equityCurve.length).fill(0);
+    const pointBorderColor: string[] = new Array(r.equityCurve.length).fill('transparent');
+
+    const txnMap = new Map<number, HistoricTransaction[]>();
+    r.transactions.forEach(t => {
+      if (!txnMap.has(t.day)) txnMap.set(t.day, []);
+      txnMap.get(t.day)!.push(t);
+    });
+
+    txnMap.forEach((txns, index) => {
+      if (index >= 0 && index < r.equityCurve.length) {
+        const netQty = txns.reduce((sum, t) => sum + (t.type === 'BUY' ? t.quantity : -t.quantity), 0);
+        
+        pointRadius[index] = 6;
+        pointStyle[index] = 'triangle';
+        
+        if (netQty > 0) {
+           pointBackgroundColor[index] = '#10B981';
+           pointBorderColor[index] = '#065F46';
+           pointRotation[index] = 0;
+        } else {
+           pointBackgroundColor[index] = '#EF4444';
+           pointBorderColor[index] = '#7F1D1D';
+           pointRotation[index] = 180;
+        }
+      }
+    });
+
+    return {
+      labels: this.generateDateLabels(r.dates.map(d => d.toISOString())),
+      datasets: [
+        { 
+          label: 'Strategy', 
+          data: r.equityCurve, 
+          borderColor: '#00D4AA', 
+          backgroundColor: 'rgba(0, 212, 170, 0.1)',
+          fill: true,
+          borderWidth: 2,
+          pointRadius: pointRadius,
+          pointStyle: pointStyle,
+          pointBackgroundColor: pointBackgroundColor,
+          pointBorderColor: pointBorderColor,
+          pointRotation: pointRotation,
+          pointHoverRadius: 8
+        },
+        { 
+          label: 'Benchmark', 
+          data: r.benchmarkCurve, 
+          borderColor: '#64748B', 
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [5, 5],
+          pointRadius: 0
+        }
+      ]
+    };
+  });
+  
+  readonly drawdownData = computed((): ChartData<'line'> => {
+    const r = this.results();
+    if (!r) return { labels: [], datasets: [] };
+
+    return {
+      labels: this.generateDateLabels(r.dates.map(d => d.toISOString())),
+      datasets: [{
+        label: 'Drawdown',
+        data: r.drawdownCurve,
+        borderColor: '#EF4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+        fill: true,
+        borderWidth: 1.5,
+        pointRadius: 0
+      }]
+    };
+  });
+
   private readonly gridColor = computed(() => 
     this.themeService.isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
   );
@@ -305,7 +608,37 @@ export class HistoricResultsComponent implements OnInit {
       legend: { 
         position: 'bottom',
         labels: { color: this.textColor() }
-      } 
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => {
+            const label = context.dataset.label || '';
+            const rawVal = context.parsed.y;
+            if (rawVal === null || rawVal === undefined) return label;
+            
+            if (label === 'Strategy' || label === 'Benchmark') {
+              return `${label}: $${new Intl.NumberFormat('en-US').format(rawVal)}`;
+            }
+            return `${label}: ${rawVal.toFixed(2)}`;
+          },
+          afterBody: (context: TooltipItem<'line'>[]) => {
+             const index = context[0].dataIndex;
+             const r = this.results();
+             if (!r || context[0].dataset.label !== 'Strategy') return [];
+
+             const txns = r.transactions.filter(t => t.day === index);
+             if (txns.length === 0) return [];
+
+             const lines = ['--- TRADES ---'];
+             txns.forEach(t => {
+                const tag = t.tag ? ` (${t.tag})` : '';
+                const type = t.type === 'BUY' ? '🟢 Buy' : '🔴 Sell';
+                lines.push(`${type} ${t.quantity.toFixed(2)} ${t.ticker.toUpperCase()} ${tag}`);
+             });
+             return lines;
+          }
+        }
+      }
     },
     scales: {
       x: { 
@@ -316,11 +649,14 @@ export class HistoricResultsComponent implements OnInit {
         grid: { color: this.gridColor() },
         ticks: { 
           color: this.textColor(),
-          callback: (value) => '$' + (Number(value) / 1000).toFixed(0) + 'K'
+          callback: (value) => {
+             const v = Number(value);
+             if (v > 1000) return '$' + (v / 1000).toFixed(0) + 'K';
+             return v.toFixed(2);
+          }
         }
       }
     },
-    elements: { point: { radius: 0 }, line: { tension: 0.1 } }
   }));
 
   readonly areaChartOptions = computed<ChartConfiguration['options']>(() => ({
@@ -344,76 +680,48 @@ export class HistoricResultsComponent implements OnInit {
     elements: { point: { radius: 0 } }
   }));
 
-  readonly equityCurveData = computed((): ChartData<'line'> => {
-    const r = this.results();
-    if (!r) return { labels: [], datasets: [] };
-
-    const labels = r.dates.map((d, i) => {
-      const date = new Date(d);
-      if (i % Math.floor(r.dates.length / 10) === 0) {
-        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      }
-      return '';
-    });
-
-    return {
-      labels,
-      datasets: [
-        { 
-          label: 'Strategy', 
-          data: r.equityCurve, 
-          borderColor: '#00D4AA', 
-          backgroundColor: 'rgba(0, 212, 170, 0.1)',
-          fill: true,
-          borderWidth: 2 
-        },
-        { 
-          label: 'Benchmark', 
-          data: r.benchmarkCurve, 
-          borderColor: '#64748B', 
-          backgroundColor: 'transparent',
-          borderWidth: 1.5,
-          borderDash: [5, 5]
-        }
-      ]
-    };
-  });
-
-  readonly drawdownData = computed((): ChartData<'line'> => {
-    const r = this.results();
-    if (!r) return { labels: [], datasets: [] };
-
-    const labels = r.dates.map((d, i) => {
-      const date = new Date(d);
-      if (i % Math.floor(r.dates.length / 10) === 0) {
-        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-      }
-      return '';
-    });
-
-    return {
-      labels,
-      datasets: [{
-        label: 'Drawdown',
-        data: r.drawdownCurve,
-        borderColor: '#EF4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-        fill: true,
-        borderWidth: 1.5
-      }]
-    };
-  });
-
   ngOnInit(): void {
     const strategyId = this.route.snapshot.paramMap.get('id');
     
     if (strategyId) {
-      // Fetch results from backend
       this.api.get<any>(`/results/strategy/${strategyId}`).subscribe({
         next: (data) => {
-          // The backend returns the raw JSON stored in ReportJson
-          // For historic, this matches the HistoricBacktestResponse structure
-          this.results.set(data);
+          const transactions = data.transactions || [];
+          const buyCount = transactions.filter((t: any) => t.type === 'BUY').length;
+          const sellCount = transactions.filter((t: any) => t.type === 'SELL').length;
+          const dates = data.dates || [];
+          const startDate = dates.length > 0 ? new Date(dates[0]) : new Date();
+          const endDate = dates.length > 0 ? new Date(dates[dates.length - 1]) : new Date();
+
+          const enrichedData: HistoricBacktestResults = {
+            id: data.id || strategyId,
+            strategyId: strategyId,
+            strategyName: data.strategyName || 'Historic Strategy',
+            createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+            
+            equityCurve: data.equityCurve || [],
+            benchmarkCurve: data.benchmarkCurve || [],
+            drawdownCurve: data.drawdownCurve || [],
+            dates: dates.map((d: string) => new Date(d)),
+            
+            totalReturn: data.totalReturn || 0,
+            benchmarkReturn: data.benchmarkReturn || 0,
+            alpha: (data.totalReturn || 0) - (data.benchmarkReturn || 0),
+            maxDrawdown: data.maxDrawdown || 0,
+            sharpeRatio: data.sharpeRatio || 0,
+            volatility: data.volatility || 0,
+            
+            transactions: transactions,
+            totalTrades: transactions.length,
+            buyCount: buyCount,
+            sellCount: sellCount,
+            
+            startDate: startDate,
+            endDate: endDate,
+            tradingDays: dates.length
+          };
+          
+          this.results.set(enrichedData);
           this.loading.set(false);
         },
         error: (err) => {
@@ -426,5 +734,138 @@ export class HistoricResultsComponent implements OnInit {
       this.loading.set(false);
       this.error.set('No strategy ID provided');
     }
+  }
+
+  async onExport(format: 'pdf' | 'csv' | 'xlsx') {
+    if (!this.results()) return;
+
+    if (!this.permissions.isPremium()) {
+      this.dialog.open(PremiumDialogComponent, {
+        width: '450px',
+        data: { featureName: 'Export Reports', description: 'Download comprehensive reports.' }
+      });
+      return;
+    }
+
+    if (format === 'csv') {
+      this.exportService.exportToCsv(this.results()!);
+      return;
+    }
+    if (format === 'xlsx') {
+      this.exportService.exportToExcel(this.results()!);
+      return;
+    }
+
+    if (format === 'pdf') {
+      this.isExporting.set(true);
+      this.notify.info('Generating PDF report... This may take a moment.');
+
+      // Temporarily show all transactions for the PDF export
+      const wasShowingAll = this.showAllTransactions();
+      this.showAllTransactions.set(true);
+
+      try {
+        const sections: PdfSection[] = [];
+        const originalIndex = this.tabGroup.selectedIndex;
+
+        // 1. Capture Equity Curve (Tab 0)
+        this.tabGroup.selectedIndex = 0;
+        await this.wait(350);
+        if (this.equityChartContainer) {
+          sections.push({
+            title: 'Equity Curve',
+            element: this.equityChartContainer.nativeElement,
+            description: 'Strategy performance vs Benchmark over time.'
+          });
+        }
+
+        // 2. Capture Drawdown (Tab 1)
+        this.tabGroup.selectedIndex = 1;
+        await this.wait(350);
+        if (this.drawdownChartContainer) {
+          sections.push({
+            title: 'Drawdown Profile',
+            element: this.drawdownChartContainer.nativeElement,
+            description: 'Historical drawdown depth percentage.'
+          });
+        }
+
+        // 3. Capture Rolling Volatility (Tab 2)
+        this.tabGroup.selectedIndex = 2;
+        await this.wait(350);
+        if (this.rollingVolChartContainer) {
+          sections.push({
+            title: 'Rolling Volatility',
+            element: this.rollingVolChartContainer.nativeElement,
+            description: '6-month rolling annualized volatility.'
+          });
+        }
+
+        // 4. Capture Rolling Sharpe (Tab 3)
+        this.tabGroup.selectedIndex = 3;
+        await this.wait(350);
+        if (this.rollingSharpeChartContainer) {
+          sections.push({
+            title: 'Rolling Sharpe Ratio',
+            element: this.rollingSharpeChartContainer.nativeElement,
+            description: '12-month rolling Sharpe ratio.'
+          });
+        }
+
+        // 5. Capture Heatmap (Always visible)
+        if (this.heatmapContainer) {
+          sections.push({
+            title: 'Monthly Returns',
+            element: this.heatmapContainer.nativeElement
+          });
+        }
+
+        // 6. Capture Stats (Always visible)
+        if (this.statsContainer) {
+          sections.push({
+            title: 'Trade Statistics',
+            element: this.statsContainer.nativeElement
+          });
+        }
+
+        // 7. Capture Trade Log (Always visible)
+        if (this.tradeLogContainer) {
+          sections.push({
+            title: 'Trade Log',
+            element: this.tradeLogContainer.nativeElement,
+            description: 'Complete list of all executed trades.'
+          });
+        }
+
+        // Restore Tab
+        this.tabGroup.selectedIndex = originalIndex || 0;
+
+        // Generate PDF
+        await this.exportService.exportToPdf(this.results()!, sections);
+        this.notify.success('Report downloaded successfully');
+
+      } catch (e) {
+        console.error(e);
+        this.notify.error('Failed to generate PDF');
+      } finally {
+        this.isExporting.set(false);
+        // Restore original transaction view state
+        this.showAllTransactions.set(wasShowingAll);
+      }
+    }
+  }
+
+  private wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  generateDateLabels(dates: string[]): string[] {
+    return dates.map((d, i) => {
+      const date = new Date(d);
+      if (i % Math.floor(dates.length / 10) === 0) {
+        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      }
+      return '';
+    });
   }
 }

@@ -61,7 +61,7 @@ export function DistributionStats_$reflection() {
 }
 
 export class SimulationReport extends Record {
-    constructor(WealthStats, TimeStats, ProbabilityOfSuccess, ProbabilityOfRuin, AverageMaxDrawdown, AverageSharpe, AverageSortino, AverageVolatility, DrawdownFrequencies, SamplePaths, Dates) {
+    constructor(WealthStats, TimeStats, ProbabilityOfSuccess, ProbabilityOfRuin, AverageMaxDrawdown, AverageSharpe, AverageSortino, AverageVolatility, DrawdownFrequencies, SamplePaths, Dates, DrawdownCone, RecoveryDistribution) {
         super();
         this.WealthStats = WealthStats;
         this.TimeStats = TimeStats;
@@ -74,10 +74,12 @@ export class SimulationReport extends Record {
         this.DrawdownFrequencies = DrawdownFrequencies;
         this.SamplePaths = SamplePaths;
         this.Dates = Dates;
+        this.DrawdownCone = DrawdownCone;
+        this.RecoveryDistribution = RecoveryDistribution;
     }
 }
 
 export function SimulationReport_$reflection() {
-    return record_type("StrategyEngine.Analytics.Types.SimulationReport", [], SimulationReport, () => [["WealthStats", DistributionStats_$reflection()], ["TimeStats", DistributionStats_$reflection()], ["ProbabilityOfSuccess", float64_type], ["ProbabilityOfRuin", float64_type], ["AverageMaxDrawdown", float64_type], ["AverageSharpe", float64_type], ["AverageSortino", float64_type], ["AverageVolatility", float64_type], ["DrawdownFrequencies", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [float64_type, float64_type])], ["SamplePaths", array_type(array_type(float64_type))], ["Dates", array_type(class_type("System.DateTime"))]]);
+    return record_type("StrategyEngine.Analytics.Types.SimulationReport", [], SimulationReport, () => [["WealthStats", DistributionStats_$reflection()], ["TimeStats", DistributionStats_$reflection()], ["ProbabilityOfSuccess", float64_type], ["ProbabilityOfRuin", float64_type], ["AverageMaxDrawdown", float64_type], ["AverageSharpe", float64_type], ["AverageSortino", float64_type], ["AverageVolatility", float64_type], ["DrawdownFrequencies", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [float64_type, float64_type])], ["SamplePaths", array_type(array_type(float64_type))], ["Dates", array_type(class_type("System.DateTime"))], ["DrawdownCone", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [int32_type, array_type(float64_type)])], ["RecoveryDistribution", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [int32_type, int32_type])]]);
 }
 

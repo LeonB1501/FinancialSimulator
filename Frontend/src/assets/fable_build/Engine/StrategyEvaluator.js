@@ -1,4 +1,4 @@
-import { length, sumBy, isEmpty, partition } from "../fable_modules/fable-library-js.4.27.0/List.js";
+import { length, append, empty, sumBy, isEmpty, partition } from "../fable_modules/fable-library-js.4.27.0/List.js";
 import { price } from "../Simulation/PricingModels.js";
 import { SimulationRunResult, EvaluationState, Portfolio } from "./EngineTypes.js";
 import { reconcileCash } from "./Reconciler.js";
@@ -43,41 +43,41 @@ function processCashflows(portfolio, scenario, currentDay, history, riskFreeRate
         switch (scenario.tag) {
             case 1: {
                 const p = scenario.fields[0];
-                return new Portfolio(portfolio.Cash + (p.MonthlyContribution * Math.pow(1 + p.ContributionGrowthRate, Math.floor(year))), portfolio.Positions, portfolio.CompositeRegistry);
+                return [new Portfolio(portfolio.Cash + (p.MonthlyContribution * Math.pow(1 + p.ContributionGrowthRate, Math.floor(year))), portfolio.Positions, portfolio.CompositeRegistry), empty()];
             }
             case 2: {
                 const p_1 = scenario.fields[0];
                 const inflationFactor = Math.pow(1 + p_1.InflationRate, Math.floor(year));
                 const netWithdrawal = (p_1.MonthlyWithdrawal * inflationFactor) - ((currentMonth >= p_1.PensionStartMonth) ? (p_1.MonthlyPension * inflationFactor) : 0);
                 if (netWithdrawal <= 0) {
-                    return new Portfolio(portfolio.Cash + Math.abs(netWithdrawal), portfolio.Positions, portfolio.CompositeRegistry);
+                    return [new Portfolio(portfolio.Cash + Math.abs(netWithdrawal), portfolio.Positions, portfolio.CompositeRegistry), empty()];
                 }
                 else if (portfolio.Cash >= netWithdrawal) {
-                    return new Portfolio(portfolio.Cash - netWithdrawal, portfolio.Positions, portfolio.CompositeRegistry);
+                    return [new Portfolio(portfolio.Cash - netWithdrawal, portfolio.Positions, portfolio.CompositeRegistry), empty()];
                 }
                 else {
                     return reconcileCash(portfolio, netWithdrawal, history, currentDay, riskFreeRate);
                 }
             }
             default:
-                return portfolio;
+                return [portfolio, empty()];
         }
     }
     else {
-        return portfolio;
+        return [portfolio, empty()];
     }
 }
 
 export function evaluate(runId, program, config, history, initialCash) {
-    let matchValue;
+    let matchValue, TransactionHistory;
     let currentState = emptyState((matchValue = config.Scenario, (matchValue.tag === 2) ? matchValue.fields[0].InitialPortfolio : initialCash), config.RiskFreeRate);
     const equityCurve = new Float64Array(config.TradingDays + 1);
     for (let day = 0; day <= config.TradingDays; day++) {
         currentState = (new EvaluationState(day, currentState.Portfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
         const settledPortfolio = processSettlement(currentState.Portfolio, history, day, config.RiskFreeRate);
         currentState = (new EvaluationState(currentState.CurrentDay, settledPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
-        const cashflowPortfolio = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate);
-        currentState = (new EvaluationState(currentState.CurrentDay, cashflowPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
+        const patternInput = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate);
+        currentState = ((TransactionHistory = append(currentState.TransactionHistory, patternInput[1]), new EvaluationState(currentState.CurrentDay, patternInput[0], currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, TransactionHistory)));
         if (((length(currentState.Portfolio.Positions) > 0) ? true : (currentState.Portfolio.Cash > 0)) && ((day === 0) ? true : ((day % config.Granularity) === 0))) {
             currentState = interpretStep(program, currentState, history);
         }
