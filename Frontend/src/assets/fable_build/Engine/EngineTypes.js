@@ -3,7 +3,7 @@ import { bool_type, array_type, class_type, tuple_type, union_type, list_type, r
 import { PositionExpression_$reflection, AssetReference_$reflection } from "../Language/AST.js";
 
 export class Transaction extends Record {
-    constructor(Date$, Ticker, Type, Quantity, Price, Value, Tag) {
+    constructor(Date$, Ticker, Type, Quantity, Price, Value, Commission, Slippage, Tag) {
         super();
         this.Date = (Date$ | 0);
         this.Ticker = Ticker;
@@ -11,12 +11,14 @@ export class Transaction extends Record {
         this.Quantity = Quantity;
         this.Price = Price;
         this.Value = Value;
+        this.Commission = Commission;
+        this.Slippage = Slippage;
         this.Tag = Tag;
     }
 }
 
 export function Transaction_$reflection() {
-    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type], ["Tag", option_type(string_type)]]);
+    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type], ["Commission", float64_type], ["Slippage", float64_type], ["Tag", option_type(string_type)]]);
 }
 
 export class HestonParameters extends Record {
@@ -160,8 +162,57 @@ export function FinancialScenario_$reflection() {
     return union_type("EngineTypes.FinancialScenario", [], FinancialScenario, () => [[], [["Item", AccumulationParams_$reflection()]], [["Item", RetirementParams_$reflection()]]]);
 }
 
+export class CommissionModel extends Record {
+    constructor(PerOrder, PerUnit) {
+        super();
+        this.PerOrder = PerOrder;
+        this.PerUnit = PerUnit;
+    }
+}
+
+export function CommissionModel_$reflection() {
+    return record_type("EngineTypes.CommissionModel", [], CommissionModel, () => [["PerOrder", float64_type], ["PerUnit", float64_type]]);
+}
+
+export class VolatilityTier extends Record {
+    constructor(MinVol, MaxVol, Spread) {
+        super();
+        this.MinVol = MinVol;
+        this.MaxVol = MaxVol;
+        this.Spread = Spread;
+    }
+}
+
+export function VolatilityTier_$reflection() {
+    return record_type("EngineTypes.VolatilityTier", [], VolatilityTier, () => [["MinVol", float64_type], ["MaxVol", float64_type], ["Spread", float64_type]]);
+}
+
+export class SlippageModel extends Record {
+    constructor(DefaultSpread, Tiers) {
+        super();
+        this.DefaultSpread = DefaultSpread;
+        this.Tiers = Tiers;
+    }
+}
+
+export function SlippageModel_$reflection() {
+    return record_type("EngineTypes.SlippageModel", [], SlippageModel, () => [["DefaultSpread", float64_type], ["Tiers", list_type(VolatilityTier_$reflection())]]);
+}
+
+export class ExecutionCosts extends Record {
+    constructor(Commission, Slippage) {
+        super();
+        this.Commission = Commission;
+        this.Slippage = Slippage;
+    }
+}
+
+export function ExecutionCosts_$reflection() {
+    return record_type("EngineTypes.ExecutionCosts", [], ExecutionCosts, () => [["Commission", CommissionModel_$reflection()], ["Slippage", SlippageModel_$reflection()]]);
+}
+
 export class SimulationConfiguration extends Record {
-    constructor(Assets, Correlations, TradingDays, Iterations, RiskFreeRate, Granularity, HistoricalData, StartDate, Scenario) {
+    constructor(Assets, Correlations, TradingDays, Iterations, RiskFreeRate, Granularity, HistoricalData, StartDate, Scenario, ExecutionCosts) {
         super();
         this.Assets = Assets;
         this.Correlations = Correlations;
@@ -172,11 +223,12 @@ export class SimulationConfiguration extends Record {
         this.HistoricalData = HistoricalData;
         this.StartDate = StartDate;
         this.Scenario = Scenario;
+        this.ExecutionCosts = ExecutionCosts;
     }
 }
 
 export function SimulationConfiguration_$reflection() {
-    return record_type("EngineTypes.SimulationConfiguration", [], SimulationConfiguration, () => [["Assets", list_type(AssetDefinition_$reflection())], ["Correlations", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [tuple_type(string_type, string_type), float64_type])], ["TradingDays", int32_type], ["Iterations", int32_type], ["RiskFreeRate", float64_type], ["Granularity", int32_type], ["HistoricalData", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [string_type, array_type(MarketDataPoint_$reflection())])], ["StartDate", class_type("System.DateTime")], ["Scenario", FinancialScenario_$reflection()]]);
+    return record_type("EngineTypes.SimulationConfiguration", [], SimulationConfiguration, () => [["Assets", list_type(AssetDefinition_$reflection())], ["Correlations", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [tuple_type(string_type, string_type), float64_type])], ["TradingDays", int32_type], ["Iterations", int32_type], ["RiskFreeRate", float64_type], ["Granularity", int32_type], ["HistoricalData", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [string_type, array_type(MarketDataPoint_$reflection())])], ["StartDate", class_type("System.DateTime")], ["Scenario", FinancialScenario_$reflection()], ["ExecutionCosts", ExecutionCosts_$reflection()]]);
 }
 
 export class ConcreteOption extends Record {

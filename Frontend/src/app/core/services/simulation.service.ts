@@ -18,7 +18,7 @@ import {
   SimulationProgress,
   SimulationJob,
 } from '../models/simulation.model';
-import { SimulationResults, DrawdownFrequency, HistogramBin } from '../models/results.model';
+import { SimulationResults, DrawdownFrequency, HistogramBin, HistoricBacktestResults } from '../models/results.model';
 
 @Injectable({
   providedIn: 'root'
@@ -91,7 +91,6 @@ export class SimulationService {
       startedAt: new Date(),
     };
 
-    // Emit initial progress
     this.progressSubject.next(this.currentJob.progress);
 
     // --- BRANCH: HISTORIC BACKTEST ---
@@ -100,7 +99,6 @@ export class SimulationService {
     }
 
     // --- BRANCH: MONTE CARLO (Worker) ---
-    // 1. Fetch Historical Data if needed (for Blocked Bootstrap)
     const historyRequests: Observable<any>[] = [];
     const tickersNeedingHistory: string[] = [];
 
@@ -137,7 +135,8 @@ export class SimulationService {
     this._state.set(SimulationState.Running);
     this.updateProgress(0, 1, 'Running Historic Backtest on Server...', 0, 0);
 
-    return this.runHistoricBacktestApi(strategy.id, new Date(s.startDate), new Date(s.endDate), s.benchmarkTicker)
+    // Pass executionCosts to the API
+    return this.runHistoricBacktestApi(strategy.id, new Date(s.startDate), new Date(s.endDate), s.benchmarkTicker, strategy.executionCosts)
       .pipe(
         switchMap((response: any) => {
           if (!response.success) {
@@ -213,10 +212,8 @@ export class SimulationService {
           this.updateProgress(100, strategy.simulationConfig.iterations, 'Processing results...', finalElapsedMs, 0);
 
           try {
-            // 1. Process Raw Data from WASM
             const results = this.processResults(strategy, data.payload, startTime);
 
-            // 2. Save to Backend
             this.saveResultsToBackend(results).subscribe({
               next: (savedRecord: any) => {
                 this._state.set(SimulationState.Completed);
@@ -300,11 +297,12 @@ export class SimulationService {
 
   // --- Historic Backtest ---
 
-  private runHistoricBacktestApi(strategyId: string, startDate: Date, endDate: Date, benchmarkTicker: string = 'spy'): Observable<any> {
+  private runHistoricBacktestApi(strategyId: string, startDate: Date, endDate: Date, benchmarkTicker: string = 'spy', executionCosts: any = null): Observable<any> {
     return this.api.post<any>(`/strategies/${strategyId}/run-historic`, {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
-      benchmarkTicker
+      benchmarkTicker,
+      executionCosts // Pass costs to backend
     });
   }
 
@@ -427,6 +425,22 @@ export class SimulationService {
       tradingDays = (strategy.scenario as any).timelineYears * 252;
     }
 
+    // Map Execution Costs for F#
+    const costs = strategy.executionCosts ? {
+      Commission: { 
+        PerOrder: strategy.executionCosts.commission.perOrder, 
+        PerUnit: strategy.executionCosts.commission.perUnit 
+      },
+      Slippage: {
+        DefaultSpread: strategy.executionCosts.slippage.defaultSpread,
+        Tiers: strategy.executionCosts.slippage.volatilityTiers.map(t => ({
+          MinVol: t.minVol,
+          MaxVol: t.maxVol,
+          Spread: t.spread
+        }))
+      }
+    } : null;
+
     return {
       Config: {
         Assets: assets,
@@ -438,7 +452,8 @@ export class SimulationService {
                      strategy.simulationConfig.granularity === 'weekly' ? 5 : 20,
         HistoricalData: historicalData,
         StartDate: new Date().toISOString(),
-        Scenario: scenario
+        Scenario: scenario,
+        ExecutionCosts: costs // Pass costs to F#
       },
       DslCode: strategy.dsl.code || "buy 100% spy",
       InitialCash: (strategy.scenario as any).initialLumpSum ?? (strategy.scenario as any).initialPortfolio ?? 100000,
@@ -532,9 +547,6 @@ export class SimulationService {
       };
     }
 
-    // --- NEW: Process Recovery Distribution ---
-    // report.RecoveryDistribution is Map<int, int> (Days -> Count)
-    // We need to bin this into logical groups
     const recoveryCounts = report.RecoveryDistribution;
     let probOneYearPlus = 0;
     const recoveryBins: HistogramBin[] = [
@@ -546,12 +558,9 @@ export class SimulationService {
     ];
 
     let totalRuns = strategy.simulationConfig.iterations;
-
-    // Handle Thoth Map serialization (array of tuples vs object)
     const recoveryEntries = Array.isArray(recoveryCounts) ? recoveryCounts : Object.entries(recoveryCounts);
 
     recoveryEntries.forEach((entry: any) => {
-        // Entry is either [days, count] or ["days", count]
         const days = Number(Array.isArray(entry) ? entry[0] : entry[0]);
         const count = Number(Array.isArray(entry) ? entry[1] : entry[1]);
 
@@ -561,12 +570,9 @@ export class SimulationService {
         if (bin) bin.count += count;
     });
 
-    // Calc Frequencies
     recoveryBins.forEach(b => b.frequency = b.count / totalRuns);
     probOneYearPlus = probOneYearPlus / totalRuns;
 
-    // --- NEW: Process Drawdown Cone ---
-    // report.DrawdownCone is Map<int, float[]> (Percentile -> Array)
     const ddCone = report.DrawdownCone;
     const coneP10 = this.getMapValue(ddCone, 10) || [];
     const coneP50 = this.getMapValue(ddCone, 50) || [];
@@ -622,7 +628,6 @@ export class SimulationService {
         averageRecoveryTime: 0,
         longestDrawdown: 0
       },
-      // --- NEW FIELDS MAPPED ---
       drawdownCone: {
           p10: coneP10,
           p50: coneP50,
@@ -632,7 +637,6 @@ export class SimulationService {
           probabilityOneYearPlus: probOneYearPlus,
           bins: recoveryBins
       },
-      // -------------------------
       detailedStats: { metrics: [] },
       samplePaths: {
         p10: this.mapPath(report.SamplePaths[0], report.Dates),
@@ -642,7 +646,10 @@ export class SimulationService {
         p90: this.mapPath(report.SamplePaths[4], report.Dates),
       },
       wealthDistribution: { bins: [], referenceLines: [] },
-      timeToTargetDistribution: null
+      timeToTargetDistribution: null,
+      // NEW: Map Cost Averages
+      averageCommission: report.AverageCommission || 0,
+      averageSlippage: report.AverageSlippage || 0
     };
   }
 
@@ -654,7 +661,6 @@ export class SimulationService {
     return deciles[key.toString()] || 0;
   }
   
-  // Helper to get value from Fable Map (Array of pairs or Object)
   private getMapValue(mapObj: any, key: number): any {
       if (!mapObj) return null;
       if (Array.isArray(mapObj)) {

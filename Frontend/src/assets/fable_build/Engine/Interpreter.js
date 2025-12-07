@@ -676,7 +676,7 @@ function interpretCondition(state_mut, history_mut, cond_mut) {
     }
 }
 
-function interpretStatement(state, history, stmt) {
+function interpretStatement(state, history, stmt, costs) {
     switch (stmt.tag) {
         case 1: {
             const setStmt = stmt.fields[0];
@@ -685,7 +685,7 @@ function interpretStatement(state, history, stmt) {
         case 3: {
             const condStmt = stmt.fields[0];
             if (interpretCondition(state, history, condStmt.Condition)) {
-                return popScope(interpretBlock(pushScope(state), history, condStmt.ThenBlock));
+                return popScope(interpretBlock(pushScope(state), history, condStmt.ThenBlock, costs));
             }
             else {
                 return state;
@@ -693,7 +693,7 @@ function interpretStatement(state, history, stmt) {
         }
         case 4: {
             const loopStmt = stmt.fields[0];
-            return fold((currentState, instance) => popScope(interpretBlock(defineLocal(loopStmt.InstanceVariable, new Value(6, [instance]), pushScope(currentState)), history, loopStmt.Block)), state, filter((p_1) => {
+            return fold((currentState, instance) => popScope(interpretBlock(defineLocal(loopStmt.InstanceVariable, new Value(6, [instance]), pushScope(currentState)), history, loopStmt.Block, costs)), state, filter((p_1) => {
                 if (p_1.DefinitionName === loopStmt.PositionType) {
                     return equals(p_1.ParentId, undefined);
                 }
@@ -703,7 +703,7 @@ function interpretStatement(state, history, stmt) {
             }, state.Portfolio.Positions));
         }
         case 2:
-            return interpretAction(state, history, stmt.fields[0]);
+            return interpretAction(state, history, stmt.fields[0], costs);
         default: {
             const def = stmt.fields[0];
             const isGlobal = isEmpty(state.ScopeStack);
@@ -720,18 +720,18 @@ function interpretStatement(state, history, stmt) {
     }
 }
 
-function interpretBlock(state, history, statements) {
-    return fold((currentState, stmt) => interpretStatement(currentState, history, stmt), state, statements);
+function interpretBlock(state, history, statements, costs) {
+    return fold((currentState, stmt) => interpretStatement(currentState, history, stmt, costs), state, statements);
 }
 
-function interpretAction(state, history, action) {
+function interpretAction(state, history, action, costs) {
     const trades = expandTrade(action, state, history);
     const validationResult = validateTrades(trades, state.Portfolio, getMarketSnapshot(history, state.CurrentDay), state.CurrentDay, state.RiskFreeRate);
     if (validationResult.tag === 1) {
         return state;
     }
     else {
-        const patternInput = executeTrades(trades, state.Portfolio, history, state.CurrentDay, state.RiskFreeRate);
+        const patternInput = executeTrades(trades, state.Portfolio, history, state.CurrentDay, state.RiskFreeRate, costs);
         return new EvaluationState(state.CurrentDay, patternInput[0], state.ScopeStack, state.GlobalScope, state.RiskFreeRate, append(state.TransactionHistory, patternInput[1]));
     }
 }
@@ -925,7 +925,7 @@ function resolveInstrument(instrument, state, history) {
     }
 }
 
-export function interpretStep(program, currentState, priceHistory) {
-    return interpretBlock(currentState, priceHistory, program.Statements);
+export function interpretStep(program, currentState, priceHistory, costs) {
+    return interpretBlock(currentState, priceHistory, program.Statements, costs);
 }
 

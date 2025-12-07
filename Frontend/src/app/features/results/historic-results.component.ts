@@ -130,7 +130,6 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                          active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   [disabled]="isExporting()"
                 >
-                  <!-- Loading Spinner -->
                   @if (isExporting()) {
                     <svg class="animate-spin -ml-1 mr-1 h-4 w-4 text-accent-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -138,19 +137,16 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                     </svg>
                     <span>Generating...</span>
                   } @else {
-                    <!-- Download Icon -->
                     <svg class="w-4 h-4 text-surface-500 group-hover:text-accent-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
                     <span>Export Report</span>
-                    <!-- Chevron -->
                     <svg class="w-4 h-4 text-surface-400 group-hover:text-surface-600 dark:group-hover:text-surface-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                   }
                 </button>
                 
-                <!-- Styled Menu -->
                 <mat-menu #exportMenu="matMenu" xPosition="before" class="mt-2">
                   <button mat-menu-item (click)="onExport('pdf')" class="group">
                     <div class="flex items-center gap-3">
@@ -165,7 +161,6 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                       </div>
                     </div>
                   </button>
-                  
                   <button mat-menu-item (click)="onExport('xlsx')" class="group">
                     <div class="flex items-center gap-3">
                       <div class="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-green-900/40 transition-colors">
@@ -179,7 +174,6 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                       </div>
                     </div>
                   </button>
-                  
                   <button mat-menu-item (click)="onExport('csv')" class="group">
                     <div class="flex items-center gap-3">
                       <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">
@@ -202,6 +196,15 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
               <mat-tab-group #tabGroup animationDuration="0ms" class="qs-tabs">
                 <mat-tab label="Equity Curve">
                   <div class="pt-4" #equityChartContainer>
+                    <!-- Toggle for Gross Equity -->
+                    <div class="flex justify-end mb-2">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" [checked]="showGrossEquity()" (change)="showGrossEquity.set(!showGrossEquity())" class="sr-only peer">
+                            <div class="relative w-11 h-6 bg-surface-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-300 dark:peer-focus:ring-accent-800 rounded-full peer dark:bg-surface-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-accent-600"></div>
+                            <span class="ms-3 text-sm font-medium text-surface-900 dark:text-surface-300">Show Gross Equity (Pre-Cost)</span>
+                        </label>
+                    </div>
+                    
                     <div class="chart-container" style="height: 450px;">
                       <canvas baseChart [data]="equityCurveData()" [options]="lineChartOptions()" type="line"></canvas>
                     </div>
@@ -242,6 +245,39 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                   </div>
                 </mat-tab>
               </mat-tab-group>
+            </div>
+
+            <!-- Execution Analysis (NEW) -->
+            <div class="bg-white dark:bg-surface-800 rounded-2xl border border-surface-200 dark:border-surface-700 p-6 shadow-soft dark:shadow-none mb-6">
+                <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4 flex items-center">
+                    <mat-icon class="text-accent-500 mr-2">payments</mat-icon>
+                    Execution Analysis
+                </h3>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
+                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Commissions</p>
+                        <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
+                            {{ results()!.totalCommission | currency }}
+                        </p>
+                        <p class="text-xs text-surface-500 mt-1">Fixed fees paid</p>
+                    </div>
+                    <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
+                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Slippage</p>
+                        <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
+                            {{ results()!.totalSlippage | currency }}
+                        </p>
+                        <p class="text-xs text-surface-500 mt-1">Lost to bid/ask spread</p>
+                    </div>
+                    <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
+                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Cost Drag</p>
+                        <p class="text-xl font-bold text-red-600 dark:text-red-400">
+                            {{ (results()!.totalCommission + results()!.totalSlippage) | currency }}
+                        </p>
+                        <p class="text-xs text-surface-500 mt-1">
+                            {{ ((results()!.totalCommission + results()!.totalSlippage) / results()!.equityCurve[0] * 100) | number:'1.2-2' }}% of initial capital
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <!-- Two Column Section -->
@@ -313,6 +349,7 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                         <th class="text-right py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Quantity</th>
                         <th class="text-right py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Price</th>
                         <th class="text-right py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Value</th>
+                        <th class="text-right py-3 px-4 text-sm font-semibold text-surface-700 dark:text-surface-300">Cost</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -340,11 +377,14 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                           <td class="py-3 px-4 text-sm font-medium text-right" [class]="txn.type === 'BUY' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'">
                             {{ txn.type === 'BUY' ? '-' : '+' }}{{ txn.value | currency }}
                           </td>
+                          <td class="py-3 px-4 text-sm text-surface-500 dark:text-surface-400 text-right">
+                             {{ (txn.commission + txn.slippage) | currency }}
+                          </td>
                         </tr>
                       }
                       @if (filteredTransactions().length === 0) {
                         <tr>
-                          <td colspan="7" class="py-8 text-center text-surface-500 dark:text-surface-400">
+                          <td colspan="8" class="py-8 text-center text-surface-500 dark:text-surface-400">
                             No transactions found
                           </td>
                         </tr>
@@ -396,6 +436,7 @@ export class HistoricResultsComponent implements OnInit {
 
   readonly filterType = signal<'all' | 'BUY' | 'SELL'>('all');
   readonly showAllTransactions = signal(false);
+  readonly showGrossEquity = signal(false);
 
   readonly alpha = computed(() => {
     const r = this.results();
@@ -544,9 +585,25 @@ export class HistoricResultsComponent implements OnInit {
       }
     });
 
-    return {
-      labels: this.generateDateLabels(r.dates.map(d => d.toISOString())),
-      datasets: [
+    // Calculate Gross Equity (Hypothetical)
+    let grossEquity: number[] = [];
+    if (this.showGrossEquity()) {
+        let cumulativeCost = 0;
+        const costMap = new Map<number, number>(); // Day -> Cost
+        r.transactions.forEach(t => {
+            const cost = t.commission + t.slippage;
+            costMap.set(t.day, (costMap.get(t.day) || 0) + cost);
+        });
+
+        grossEquity = r.equityCurve.map((val, i) => {
+            if (costMap.has(i)) {
+                cumulativeCost += costMap.get(i)!;
+            }
+            return val + cumulativeCost;
+        });
+    }
+
+    const datasets: any[] = [
         { 
           label: 'Strategy', 
           data: r.equityCurve, 
@@ -570,7 +627,23 @@ export class HistoricResultsComponent implements OnInit {
           borderDash: [5, 5],
           pointRadius: 0
         }
-      ]
+    ];
+
+    if (this.showGrossEquity()) {
+        datasets.push({
+            label: 'Gross Equity (Pre-Cost)',
+            data: grossEquity,
+            borderColor: '#A855F7', // Purple
+            backgroundColor: 'transparent',
+            borderWidth: 1.5,
+            borderDash: [2, 2],
+            pointRadius: 0
+        });
+    }
+
+    return {
+      labels: this.generateDateLabels(r.dates.map(d => d.toISOString())),
+      datasets: datasets
     };
   });
   
@@ -616,7 +689,7 @@ export class HistoricResultsComponent implements OnInit {
             const rawVal = context.parsed.y;
             if (rawVal === null || rawVal === undefined) return label;
             
-            if (label === 'Strategy' || label === 'Benchmark') {
+            if (label.includes('Equity') || label === 'Benchmark') {
               return `${label}: $${new Intl.NumberFormat('en-US').format(rawVal)}`;
             }
             return `${label}: ${rawVal.toFixed(2)}`;
@@ -693,6 +766,10 @@ export class HistoricResultsComponent implements OnInit {
           const startDate = dates.length > 0 ? new Date(dates[0]) : new Date();
           const endDate = dates.length > 0 ? new Date(dates[dates.length - 1]) : new Date();
 
+          // Calculate total costs if backend didn't aggregate (it should have, but safe fallback)
+          const totalComm = data.totalCommission ?? transactions.reduce((sum: number, t: any) => sum + (t.commission || 0), 0);
+          const totalSlip = data.totalSlippage ?? transactions.reduce((sum: number, t: any) => sum + (t.slippage || 0), 0);
+
           const enrichedData: HistoricBacktestResults = {
             id: data.id || strategyId,
             strategyId: strategyId,
@@ -718,7 +795,11 @@ export class HistoricResultsComponent implements OnInit {
             
             startDate: startDate,
             endDate: endDate,
-            tradingDays: dates.length
+            tradingDays: dates.length,
+
+            // NEW: Costs
+            totalCommission: totalComm,
+            totalSlippage: totalSlip
           };
           
           this.results.set(enrichedData);

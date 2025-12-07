@@ -102,7 +102,16 @@ import { SimulationMode } from '@core/models/strategy.model';
                     }
                 </div>
 
-                <!-- Recovery Risk (NEW) -->
+                <!-- Cost Impact (NEW) -->
+                <div class="bg-surface-50 dark:bg-surface-700/50 rounded-xl p-5 border border-surface-200 dark:border-surface-600">
+                    <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Avg Execution Cost</p>
+                    <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {{ (results()!.averageCommission + results()!.averageSlippage) | compactCurrency:0 }}
+                    </p>
+                    <p class="text-xs text-surface-500 dark:text-surface-400 mt-1">per simulation run</p>
+                </div>
+
+                <!-- Recovery Risk -->
                 @if (results()!.recoveryAnalysis) {
                     <div class="bg-surface-50 dark:bg-surface-700/50 rounded-xl p-5 border border-surface-200 dark:border-surface-600">
                       <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Stagnation Risk (>1 Yr)</p>
@@ -144,7 +153,6 @@ import { SimulationMode } from '@core/models/strategy.model';
                            active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     [disabled]="isExporting()"
                   >
-                    <!-- Loading Spinner -->
                     @if (isExporting()) {
                       <svg class="animate-spin -ml-1 mr-1 h-4 w-4 text-accent-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -152,19 +160,16 @@ import { SimulationMode } from '@core/models/strategy.model';
                       </svg>
                       <span>Generating...</span>
                     } @else {
-                      <!-- Download Icon -->
                       <svg class="w-4 h-4 text-surface-500 group-hover:text-accent-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                       </svg>
                       <span>Export Report</span>
-                      <!-- Chevron -->
                       <svg class="w-4 h-4 text-surface-400 group-hover:text-surface-600 dark:group-hover:text-surface-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                       </svg>
                     }
                   </button>
                   
-                  <!-- Styled Menu -->
                   <mat-menu #exportMenu="matMenu" xPosition="before" class="mt-2">
                     <button mat-menu-item (click)="onExport('pdf')" class="group">
                       <div class="flex items-center gap-3">
@@ -179,7 +184,6 @@ import { SimulationMode } from '@core/models/strategy.model';
                         </div>
                       </div>
                     </button>
-                    
                     <button mat-menu-item (click)="onExport('xlsx')" class="group">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-green-900/40 transition-colors">
@@ -193,7 +197,6 @@ import { SimulationMode } from '@core/models/strategy.model';
                         </div>
                       </div>
                     </button>
-                    
                     <button mat-menu-item (click)="onExport('csv')" class="group">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40 transition-colors">

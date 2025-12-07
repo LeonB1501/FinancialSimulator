@@ -25,7 +25,8 @@ import {
   DEFAULT_HESTON_PARAMS,
   DEFAULT_GBM_PARAMS,
   DEFAULT_GARCH_PARAMS,
-  DslError
+  DslError,
+  DEFAULT_EXECUTION_COSTS // <--- ADDED IMPORT
 } from '../models/strategy.model';
 
 // --- DTO Interfaces matching Backend C# DTOs ---
@@ -51,7 +52,7 @@ interface StrategyResponseDto {
   isPublic: boolean;
   createdAt: string;
   lastModified: string;
-  latestResultId?: string; // <--- ADDED
+  latestResultId?: string;
 }
 
 interface DslValidationResponse {
@@ -271,6 +272,7 @@ export class StrategyService {
       correlationMatrix: strategyData.correlationMatrix,
       customTickers: strategyData.customTickers,
       simulationConfig: strategyData.simulationConfig,
+      executionCosts: strategyData.executionCosts, // Include Costs
       status: strategyData.status
     };
 
@@ -309,6 +311,7 @@ export class StrategyService {
       correlationMatrix: strategyData.correlationMatrix,
       customTickers: strategyData.customTickers,
       simulationConfig: strategyData.simulationConfig,
+      executionCosts: strategyData.executionCosts, // Include Costs
       status: strategyData.status
     };
 
@@ -405,6 +408,8 @@ export class StrategyService {
       indices: config.indices || [],
       correlationMatrix: config.correlationMatrix || { indices: [], matrix: [] },
       customTickers: config.customTickers || [],
+      // FIX: Map execution costs with default fallback
+      executionCosts: config.executionCosts || DEFAULT_EXECUTION_COSTS,
       simulationConfig: config.simulationConfig || DEFAULT_SIMULATION_CONFIG,
       dsl: {
         code: dto.dslScript,
@@ -416,7 +421,7 @@ export class StrategyService {
       createdAt: new Date(dto.createdAt),
       updatedAt: new Date(dto.lastModified),
       lastRunAt: undefined,
-      latestResultId: dto.latestResultId // <--- MAPPED
+      latestResultId: dto.latestResultId
     };
   }
 
@@ -434,7 +439,7 @@ export class StrategyService {
       indices: (config.indices || []).map((i: any) => i.symbol),
       status: config.status || StrategyStatus.Draft,
       updatedAt: new Date(dto.lastModified),
-      latestResultId: dto.latestResultId // <--- MAPPED
+      latestResultId: dto.latestResultId
     };
   }
 
@@ -524,6 +529,7 @@ export class StrategyService {
       correlationMatrix: strategy.correlationMatrix,
       customTickers: strategy.customTickers,
       simulationConfig: strategy.simulationConfig,
+      executionCosts: strategy.executionCosts, // Load costs
       dsl: strategy.dsl,
     });
   }

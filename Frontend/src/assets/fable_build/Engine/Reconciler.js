@@ -363,7 +363,7 @@ function getTickerName(p) {
     }
 }
 
-export function reconcileCash(portfolio, requiredCash, history, day, r) {
+export function reconcileCash(portfolio, requiredCash, history, day, r, costs) {
     const deficit = requiredCash - portfolio.Cash;
     if (deficit <= 0) {
         return [new Portfolio(portfolio.Cash - requiredCash, portfolio.Positions, portfolio.CompositeRegistry), empty()];
@@ -402,22 +402,27 @@ export function reconcileCash(portfolio, requiredCash, history, day, r) {
                         const longPos = cand.fields[1];
                         const unitNet = cand.fields[2] / Math.abs(shortPos.Quantity);
                         const unitsToClose = min(Math.abs(shortPos.Quantity), Math.ceil(currentDeficit / unitNet));
-                        const proceeds_1 = unitsToClose * unitNet;
-                        currentDeficit = (currentDeficit - proceeds_1);
-                        totalProceeds = (totalProceeds + proceeds_1);
+                        const commission_1 = (costs.Commission.PerOrder * 2) + ((costs.Commission.PerUnit * unitsToClose) * 2);
+                        const slippageAmount_1 = (unitNet * unitsToClose) * (costs.Slippage.DefaultSpread / 2);
+                        const netProceeds_1 = ((unitsToClose * unitNet) - commission_1) - slippageAmount_1;
+                        currentDeficit = (currentDeficit - netProceeds_1);
+                        totalProceeds = (totalProceeds + netProceeds_1);
                         reductions = FSharpMap__Add(reductions, shortPos.Id, -unitsToClose + defaultArg(FSharpMap__TryFind(reductions, shortPos.Id), 0));
                         reductions = FSharpMap__Add(reductions, longPos.Id, unitsToClose + defaultArg(FSharpMap__TryFind(reductions, longPos.Id), 0));
-                        transactions = cons(new Transaction(day, `SPREAD_${getTickerName(longPos)}`, "SELL", unitsToClose, 0, proceeds_1, "LIQUIDATION"), transactions);
+                        transactions = cons(new Transaction(day, `SPREAD_${getTickerName(longPos)}`, "SELL", unitsToClose, 0, netProceeds_1, commission_1, slippageAmount_1, "LIQUIDATION"), transactions);
                     }
                     else {
                         const p_1 = cand.fields[0];
                         const unitVal = cand.fields[1] / p_1.Quantity;
                         const qtyToSell = min(p_1.Quantity, Math.ceil(currentDeficit / unitVal));
-                        const proceeds = qtyToSell * unitVal;
-                        currentDeficit = (currentDeficit - proceeds);
-                        totalProceeds = (totalProceeds + proceeds);
+                        const commission = costs.Commission.PerOrder + (costs.Commission.PerUnit * qtyToSell);
+                        const slippagePct = costs.Slippage.DefaultSpread;
+                        const slippageAmount = (unitVal * qtyToSell) * (slippagePct / 2);
+                        const netProceeds = ((qtyToSell * unitVal) - commission) - slippageAmount;
+                        currentDeficit = (currentDeficit - netProceeds);
+                        totalProceeds = (totalProceeds + netProceeds);
                         reductions = FSharpMap__Add(reductions, p_1.Id, qtyToSell + defaultArg(FSharpMap__TryFind(reductions, p_1.Id), 0));
-                        transactions = cons(new Transaction(day, getTickerName(p_1), "SELL", qtyToSell, getPrice(p_1, history, day, r), proceeds, "LIQUIDATION"), transactions);
+                        transactions = cons(new Transaction(day, getTickerName(p_1), "SELL", qtyToSell, unitVal * (1 - (slippagePct / 2)), netProceeds, commission, slippageAmount, "LIQUIDATION"), transactions);
                     }
                 }
             }

@@ -36,7 +36,7 @@ function processSettlement(portfolio, history, currentDay, riskFreeRate) {
     }
 }
 
-function processCashflows(portfolio, scenario, currentDay, history, riskFreeRate) {
+function processCashflows(portfolio, scenario, currentDay, history, riskFreeRate, costs) {
     if ((currentDay > 0) && ((currentDay % 30) === 0)) {
         const year = currentDay / 365;
         const currentMonth = ~~(currentDay / 30) | 0;
@@ -56,7 +56,7 @@ function processCashflows(portfolio, scenario, currentDay, history, riskFreeRate
                     return [new Portfolio(portfolio.Cash - netWithdrawal, portfolio.Positions, portfolio.CompositeRegistry), empty()];
                 }
                 else {
-                    return reconcileCash(portfolio, netWithdrawal, history, currentDay, riskFreeRate);
+                    return reconcileCash(portfolio, netWithdrawal, history, currentDay, riskFreeRate, costs);
                 }
             }
             default:
@@ -76,10 +76,10 @@ export function evaluate(runId, program, config, history, initialCash) {
         currentState = (new EvaluationState(day, currentState.Portfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
         const settledPortfolio = processSettlement(currentState.Portfolio, history, day, config.RiskFreeRate);
         currentState = (new EvaluationState(currentState.CurrentDay, settledPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
-        const patternInput = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate);
+        const patternInput = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate, config.ExecutionCosts);
         currentState = ((TransactionHistory = append(currentState.TransactionHistory, patternInput[1]), new EvaluationState(currentState.CurrentDay, patternInput[0], currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, TransactionHistory)));
         if (((length(currentState.Portfolio.Positions) > 0) ? true : (currentState.Portfolio.Cash > 0)) && ((day === 0) ? true : ((day % config.Granularity) === 0))) {
-            currentState = interpretStep(program, currentState, history);
+            currentState = interpretStep(program, currentState, history, config.ExecutionCosts);
         }
         const dailyValue = calculatePortfolioValue(currentState.Portfolio, history, day, config.RiskFreeRate);
         setItem(equityCurve, day, dailyValue);

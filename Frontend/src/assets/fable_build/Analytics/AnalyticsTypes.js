@@ -27,7 +27,7 @@ export function DrawdownStats_$reflection() {
 }
 
 export class SingleRunMetrics extends Record {
-    constructor(RunId, FinalWealth, CAGR, AnnualizedVolatility, SharpeRatio, SortinoRatio, Drawdown, ReachedGoal, DaysToGoal, IsRuined) {
+    constructor(RunId, FinalWealth, CAGR, AnnualizedVolatility, SharpeRatio, SortinoRatio, Drawdown, ReachedGoal, DaysToGoal, IsRuined, TotalCommission, TotalSlippage) {
         super();
         this.RunId = (RunId | 0);
         this.FinalWealth = FinalWealth;
@@ -39,11 +39,13 @@ export class SingleRunMetrics extends Record {
         this.ReachedGoal = ReachedGoal;
         this.DaysToGoal = DaysToGoal;
         this.IsRuined = IsRuined;
+        this.TotalCommission = TotalCommission;
+        this.TotalSlippage = TotalSlippage;
     }
 }
 
 export function SingleRunMetrics_$reflection() {
-    return record_type("StrategyEngine.Analytics.Types.SingleRunMetrics", [], SingleRunMetrics, () => [["RunId", int32_type], ["FinalWealth", float64_type], ["CAGR", float64_type], ["AnnualizedVolatility", float64_type], ["SharpeRatio", float64_type], ["SortinoRatio", float64_type], ["Drawdown", DrawdownStats_$reflection()], ["ReachedGoal", bool_type], ["DaysToGoal", option_type(int32_type)], ["IsRuined", bool_type]]);
+    return record_type("StrategyEngine.Analytics.Types.SingleRunMetrics", [], SingleRunMetrics, () => [["RunId", int32_type], ["FinalWealth", float64_type], ["CAGR", float64_type], ["AnnualizedVolatility", float64_type], ["SharpeRatio", float64_type], ["SortinoRatio", float64_type], ["Drawdown", DrawdownStats_$reflection()], ["ReachedGoal", bool_type], ["DaysToGoal", option_type(int32_type)], ["IsRuined", bool_type], ["TotalCommission", float64_type], ["TotalSlippage", float64_type]]);
 }
 
 export class DistributionStats extends Record {
@@ -61,7 +63,7 @@ export function DistributionStats_$reflection() {
 }
 
 export class SimulationReport extends Record {
-    constructor(WealthStats, TimeStats, ProbabilityOfSuccess, ProbabilityOfRuin, AverageMaxDrawdown, AverageSharpe, AverageSortino, AverageVolatility, DrawdownFrequencies, SamplePaths, Dates, DrawdownCone, RecoveryDistribution) {
+    constructor(WealthStats, TimeStats, ProbabilityOfSuccess, ProbabilityOfRuin, AverageMaxDrawdown, AverageSharpe, AverageSortino, AverageVolatility, AverageCommission, AverageSlippage, DrawdownFrequencies, SamplePaths, Dates, DrawdownCone, RecoveryDistribution) {
         super();
         this.WealthStats = WealthStats;
         this.TimeStats = TimeStats;
@@ -71,6 +73,8 @@ export class SimulationReport extends Record {
         this.AverageSharpe = AverageSharpe;
         this.AverageSortino = AverageSortino;
         this.AverageVolatility = AverageVolatility;
+        this.AverageCommission = AverageCommission;
+        this.AverageSlippage = AverageSlippage;
         this.DrawdownFrequencies = DrawdownFrequencies;
         this.SamplePaths = SamplePaths;
         this.Dates = Dates;
@@ -80,6 +84,6 @@ export class SimulationReport extends Record {
 }
 
 export function SimulationReport_$reflection() {
-    return record_type("StrategyEngine.Analytics.Types.SimulationReport", [], SimulationReport, () => [["WealthStats", DistributionStats_$reflection()], ["TimeStats", DistributionStats_$reflection()], ["ProbabilityOfSuccess", float64_type], ["ProbabilityOfRuin", float64_type], ["AverageMaxDrawdown", float64_type], ["AverageSharpe", float64_type], ["AverageSortino", float64_type], ["AverageVolatility", float64_type], ["DrawdownFrequencies", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [float64_type, float64_type])], ["SamplePaths", array_type(array_type(float64_type))], ["Dates", array_type(class_type("System.DateTime"))], ["DrawdownCone", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [int32_type, array_type(float64_type)])], ["RecoveryDistribution", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [int32_type, int32_type])]]);
+    return record_type("StrategyEngine.Analytics.Types.SimulationReport", [], SimulationReport, () => [["WealthStats", DistributionStats_$reflection()], ["TimeStats", DistributionStats_$reflection()], ["ProbabilityOfSuccess", float64_type], ["ProbabilityOfRuin", float64_type], ["AverageMaxDrawdown", float64_type], ["AverageSharpe", float64_type], ["AverageSortino", float64_type], ["AverageVolatility", float64_type], ["AverageCommission", float64_type], ["AverageSlippage", float64_type], ["DrawdownFrequencies", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [float64_type, float64_type])], ["SamplePaths", array_type(array_type(float64_type))], ["Dates", array_type(class_type("System.DateTime"))], ["DrawdownCone", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [int32_type, array_type(float64_type)])], ["RecoveryDistribution", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [int32_type, int32_type])]]);
 }
 

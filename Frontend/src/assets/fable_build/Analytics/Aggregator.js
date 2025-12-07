@@ -179,16 +179,26 @@ export function aggregate(runs, metrics, config, startDate) {
         Add: (x_7, y_3) => (x_7 + y_3),
         DivideByInt: (x_6, i_3) => (x_6 / i_3),
     });
+    const avgComm = averageBy((m_8) => m_8.TotalCommission, metrics, {
+        GetZero: () => 0,
+        Add: (x_9, y_4) => (x_9 + y_4),
+        DivideByInt: (x_8, i_4) => (x_8 / i_4),
+    });
+    const avgSlip = averageBy((m_9) => m_9.TotalSlippage, metrics, {
+        GetZero: () => 0,
+        Add: (x_11, y_5) => (x_11 + y_5),
+        DivideByInt: (x_10, i_5) => (x_10 / i_5),
+    });
     const ddFrequencies = ofList(map((t) => {
-        let array_12;
-        return [t, ((array_12 = metrics.filter((m_8) => {
-            if (FSharpMap__ContainsKey(m_8.Drawdown.DrawdownCounts, t)) {
-                return FSharpMap__get_Item(m_8.Drawdown.DrawdownCounts, t) > 0;
+        let array_14;
+        return [t, ((array_14 = metrics.filter((m_10) => {
+            if (FSharpMap__ContainsKey(m_10.Drawdown.DrawdownCounts, t)) {
+                return FSharpMap__get_Item(m_10.Drawdown.DrawdownCounts, t) > 0;
             }
             else {
                 return false;
             }
-        }), array_12.length)) / count];
+        }), array_14.length)) / count];
     }, ofArray([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1])), {
         Compare: comparePrimitives,
     });
@@ -196,6 +206,6 @@ export function aggregate(runs, metrics, config, startDate) {
         Compare: comparePrimitives,
     });
     const getPathAtPercentile = (p) => item(~~((p / 100) * (count - 1)), sortedByWealth)[1].EquityCurve;
-    return new SimulationReport(wealthStats, timeStats, successCount / count, ruinCount / count, avgMaxDD, avgSharpe, avgSortino, avgVol, ddFrequencies, (runs.length < 5) ? map_1((r) => r.EquityCurve, runs) : [getPathAtPercentile(10), getPathAtPercentile(25), getPathAtPercentile(50), getPathAtPercentile(75), getPathAtPercentile(90)], initialize(item(0, runs).EquityCurve.length, (i_4) => addDays(startDate, i_4)), calculateDrawdownCone(runs), calculateRecoveryDistribution(runs));
+    return new SimulationReport(wealthStats, timeStats, successCount / count, ruinCount / count, avgMaxDD, avgSharpe, avgSortino, avgVol, avgComm, avgSlip, ddFrequencies, (runs.length < 5) ? map_1((r) => r.EquityCurve, runs) : [getPathAtPercentile(10), getPathAtPercentile(25), getPathAtPercentile(50), getPathAtPercentile(75), getPathAtPercentile(90)], initialize(item(0, runs).EquityCurve.length, (i_6) => addDays(startDate, i_6)), calculateDrawdownCone(runs), calculateRecoveryDistribution(runs));
 }
 

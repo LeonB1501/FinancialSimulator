@@ -37,7 +37,7 @@ export function runSimulationWithProgress(config, dslCode, initialCash, baseSeed
         const program = matchValue.fields[0];
         const requiredLookback = calculateMaxLookback(program) | 0;
         const warmupDays = ((requiredLookback > 0) ? (requiredLookback + 10) : 0) | 0;
-        const configWithWarmup = new SimulationConfiguration(config.Assets, config.Correlations, config.TradingDays + warmupDays, config.Iterations, config.RiskFreeRate, config.Granularity, config.HistoricalData, config.StartDate, config.Scenario);
+        const configWithWarmup = new SimulationConfiguration(config.Assets, config.Correlations, config.TradingDays + warmupDays, config.Iterations, config.RiskFreeRate, config.Granularity, config.HistoricalData, config.StartDate, config.Scenario, config.ExecutionCosts);
         try {
             const totalIterations = config.Iterations | 0;
             const results = fill(new Array(totalIterations), 0, totalIterations, null);

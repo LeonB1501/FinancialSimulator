@@ -4,6 +4,7 @@ import { ofArray } from "../fable_modules/fable-library-js.4.27.0/Map.js";
 import { comparePrimitives } from "../fable_modules/fable-library-js.4.27.0/Util.js";
 import { SingleRunMetrics, DrawdownStats } from "./AnalyticsTypes.js";
 import { defaultArg } from "../fable_modules/fable-library-js.4.27.0/Option.js";
+import { sumBy as sumBy_1 } from "../fable_modules/fable-library-js.4.27.0/List.js";
 
 const TRADING_DAYS = 252;
 
@@ -113,6 +114,12 @@ export function calculateSingleRun(run, config) {
     const ddStats = calculateDrawdownStats(curve);
     const target = defaultArg(config.TargetWealth, 1.7976931348623157E+308);
     const daysToGoal = tryFindIndex((v) => (v >= target), curve);
-    return new SingleRunMetrics(run.RunId, endVal, cagr, vol, sharpe, sortino, ddStats, daysToGoal != null, daysToGoal, curve.some((v_1) => (v_1 <= 0)));
+    return new SingleRunMetrics(run.RunId, endVal, cagr, vol, sharpe, sortino, ddStats, daysToGoal != null, daysToGoal, curve.some((v_1) => (v_1 <= 0)), sumBy_1((t) => t.Commission, run.TransactionHistory, {
+        GetZero: () => 0,
+        Add: (x, y) => (x + y),
+    }), sumBy_1((t_1) => t_1.Slippage, run.TransactionHistory, {
+        GetZero: () => 0,
+        Add: (x_1, y_1) => (x_1 + y_1),
+    }));
 }
 

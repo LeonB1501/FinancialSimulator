@@ -6,6 +6,7 @@ import { HeaderComponent } from '@shared/components/header/header.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { ModeSelectionComponent } from './steps/mode-selection/mode-selection.component';
 import { ModelConfigComponent } from './steps/model-config/model-config.component';
+import { ExecutionCostsComponent } from './steps/execution-costs/execution-costs.component'; // NEW IMPORT
 import { SimulationParamsComponent } from './steps/simulation-params/simulation-params.component';
 import { DslEditorComponent } from './steps/dsl-editor/dsl-editor.component';
 import { ReviewComponent } from './steps/review/review.component';
@@ -22,6 +23,8 @@ import {
   Strategy,
   StrategyStatus,
   HistoricScenario,
+  ExecutionCosts,
+  DEFAULT_EXECUTION_COSTS
 } from '@core/models';
 
 interface WizardStep {
@@ -42,6 +45,7 @@ interface WizardStep {
     LoadingSpinnerComponent,
     ModeSelectionComponent,
     ModelConfigComponent,
+    ExecutionCostsComponent, // NEW IMPORT
     SimulationParamsComponent,
     DslEditorComponent,
     ReviewComponent,
@@ -134,8 +138,8 @@ interface WizardStep {
 
           <!-- Step Content -->
           <div class="mx-auto p-6 lg:p-10 transition-all duration-300"
-               [class.max-w-4xl]="currentStep() !== 3"
-               [class.max-w-[1600px]]="currentStep() === 3">
+               [class.max-w-4xl]="currentStep() !== 4"
+               [class.max-w-[1600px]]="currentStep() === 4">
             
             @switch (currentStep()) {
               @case (0) {
@@ -161,6 +165,13 @@ interface WizardStep {
                 }
               }
               @case (2) {
+                <!-- EXECUTION COSTS STEP -->
+                <qs-execution-costs
+                  [draft]="strategyService.draft()"
+                  (costsChanged)="onCostsChanged($event)"
+                />
+              }
+              @case (3) {
                 @if (isHistoricMode()) {
                   <qs-historical-params
                     [draft]="strategyService.draft()"
@@ -174,13 +185,13 @@ interface WizardStep {
                   />
                 }
               }
-              @case (3) {
+              @case (4) {
                 <qs-dsl-editor
                   [draft]="strategyService.draft()"
                   (codeChanged)="onDslCodeChanged($event)"
                 />
               }
-              @case (4) {
+              @case (5) {
                 <qs-review
                   [draft]="strategyService.draft()"
                   (nameChanged)="onNameChanged($event)"
@@ -271,6 +282,14 @@ export class StrategyBuilderComponent implements OnInit {
       isComplete: () => (this.strategyService.draft().indices?.length ?? 0) > 0,
       isValid: () => (this.strategyService.draft().indices?.length ?? 0) > 0,
     },
+    // NEW STEP
+    {
+      id: 'costs',
+      label: 'Execution & Costs',
+      shortLabel: 'Costs',
+      isComplete: () => !!this.strategyService.draft().executionCosts,
+      isValid: () => true, // Optional, defaults used if skipped
+    },
     {
       id: 'params',
       label: 'Simulation Parameters',
@@ -282,7 +301,6 @@ export class StrategyBuilderComponent implements OnInit {
       id: 'dsl',
       label: 'Strategy DSL',
       shortLabel: 'DSL',
-      // DSL must have code and no validation errors
       isComplete: () => {
         const dsl = this.strategyService.draft().dsl;
         return (dsl?.code?.length || 0) > 0 && (dsl?.isValid !== false);
@@ -313,7 +331,6 @@ export class StrategyBuilderComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    // FIX: Clear draft if not editing to ensure clean slate
     const editId = this.route.snapshot.queryParams['edit'];
     if (editId) {
       this.loadStrategy(editId);
@@ -333,6 +350,7 @@ export class StrategyBuilderComponent implements OnInit {
         indices: strategy.indices,
         correlationMatrix: strategy.correlationMatrix,
         customTickers: strategy.customTickers,
+        executionCosts: strategy.executionCosts, // Load costs
         simulationConfig: strategy.simulationConfig,
         dsl: strategy.dsl,
       });
@@ -400,7 +418,6 @@ export class StrategyBuilderComponent implements OnInit {
   }
 
   canSubmit(): boolean {
-    // All steps must be complete AND DSL must be valid
     const allStepsComplete = this.steps.slice(0, -1).every(s => s.isComplete());
     const dsl = this.strategyService.draft().dsl;
     const dslIsValid = (dsl?.code?.trim().length || 0) > 0 &&
@@ -434,6 +451,10 @@ export class StrategyBuilderComponent implements OnInit {
 
   onCustomTickersChanged(tickers: any[]): void {
     this.strategyService.updateDraft({ customTickers: tickers });
+  }
+
+  onCostsChanged(costs: ExecutionCosts): void {
+    this.strategyService.updateDraft({ executionCosts: costs });
   }
 
   onScenarioChanged(scenario: any): void {
@@ -471,7 +492,6 @@ export class StrategyBuilderComponent implements OnInit {
   }
 
   saveAndRun(): void {
-    // FIX: Wait for save to complete before running, passing the *saved* strategy object
     this.saveStrategy(false).then(strategy => {
       if (strategy) {
         this.runSimulation(strategy);
@@ -490,6 +510,7 @@ export class StrategyBuilderComponent implements OnInit {
       indices: draft.indices || [],
       correlationMatrix: draft.correlationMatrix || { indices: [], matrix: [] },
       customTickers: draft.customTickers || [],
+      executionCosts: draft.executionCosts || DEFAULT_EXECUTION_COSTS, // Include Costs
       simulationConfig: { ...DEFAULT_SIMULATION_CONFIG, ...draft.simulationConfig },
       dsl: draft.dsl || { code: '', isValid: true, errors: [], warnings: [] },
       status: isDraft ? StrategyStatus.Draft : StrategyStatus.Ready,
@@ -532,15 +553,12 @@ export class StrategyBuilderComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result?.success) {
-        // --- FIX START: Conditional Routing ---
         if (strategy.mode === SimulationMode.Historic) {
           this.router.navigate(['/results/historic', strategy.id]);
         } else {
           this.router.navigate(['/results', strategy.id]);
         }
-        // --- FIX END ---
       } else if (result?.minimized) {
-        // Simulation is already running in background, register with queue for tracking
         this.queueService.registerRunning(strategy);
         this.notificationService.info('Simulation running in background. Check the indicator in the header.');
       }

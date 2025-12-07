@@ -26,7 +26,7 @@ export interface SimulationResults {
   // Drawdown analysis
   drawdownAnalysis: DrawdownAnalysis;
   
-  // NEW: Monte Carlo specific visual data
+  // Monte Carlo specific visual data
   drawdownCone: DrawdownCone;
   recoveryAnalysis: RecoveryAnalysis;
   
@@ -39,6 +39,10 @@ export interface SimulationResults {
   // Histogram data
   wealthDistribution: HistogramData;
   timeToTargetDistribution: HistogramData | null;
+
+  // NEW: Cost Analysis (Monte Carlo Averages)
+  averageCommission: number;
+  averageSlippage: number;
 }
 
 // ============================================
@@ -54,6 +58,9 @@ export interface HistoricTransaction {
   price: number;
   value: number;
   tag?: string;
+  // NEW: Cost Breakdown per Trade
+  commission: number;
+  slippage: number;
 }
 
 export interface HistoricBacktestResults {
@@ -86,6 +93,10 @@ export interface HistoricBacktestResults {
   startDate: Date;
   endDate: Date;
   tradingDays: number;
+
+  // NEW: Total Costs
+  totalCommission: number;
+  totalSlippage: number;
 }
 
 export interface ResultsMetadata {

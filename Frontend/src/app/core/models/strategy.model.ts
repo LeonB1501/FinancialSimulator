@@ -10,18 +10,11 @@ export enum SimulationMode {
 
 export enum StochasticModel {
   Heston = 'heston',
-  // Updated to match the PermissionsService check logic if we want to be verbose, 
-  // OR we update the service. Let's keep the short names here as they are used in JSON.
   GBM = 'gbm', 
   GARCH = 'garch',
   BlockedBootstrap = 'blocked_bootstrap',
   RegimeSwitching = 'regime_switching',
 }
-
-// Helper for the Permissions Service to map "GeometricBrownianMotion" if needed,
-// but for now, we will update the PermissionsService in the next step if this file was already correct.
-// Actually, let's keep this file as is (Standard) and I will correct the PermissionsService 
-// in the previous block to use 'GBM' instead of 'GeometricBrownianMotion'.
 
 export enum Granularity {
   Daily = 'daily',
@@ -122,6 +115,29 @@ export interface CustomTicker {
 }
 
 // ============================================
+// EXECUTION & COSTS (NEW)
+// ============================================
+
+export interface VolatilityTier {
+  minVol: number;
+  maxVol: number;
+  spread: number;
+}
+
+export interface CostModel {
+  commission: {
+    perOrder: number;
+    perUnit: number;
+  };
+  slippage: {
+    defaultSpread: number;
+    volatilityTiers: VolatilityTier[];
+  };
+}
+
+export type ExecutionCosts = CostModel;
+
+// ============================================
 // SIMULATION PARAMETERS
 // ============================================
 
@@ -197,6 +213,8 @@ export interface Strategy {
   indices: Index[];
   correlationMatrix: CorrelationMatrix;
   customTickers: CustomTicker[];
+  // NEW: Execution Costs
+  executionCosts: ExecutionCosts;
   simulationConfig: SimulationConfig;
   dsl: DslCode;
   status: StrategyStatus;
@@ -214,6 +232,8 @@ export interface StrategyDraft {
   indices?: Index[];
   correlationMatrix?: CorrelationMatrix;
   customTickers?: CustomTicker[];
+  // NEW: Execution Costs
+  executionCosts?: ExecutionCosts;
   simulationConfig?: Partial<SimulationConfig>;
   dsl?: Partial<DslCode>;
 }
@@ -288,6 +308,22 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   iterations: 10000,
   granularity: Granularity.Weekly,
   riskFreeRate: 0.04,
+};
+
+// NEW: Default Costs
+export const DEFAULT_EXECUTION_COSTS: ExecutionCosts = {
+  commission: {
+    perOrder: 1.0,
+    perUnit: 0.0
+  },
+  slippage: {
+    defaultSpread: 0.1, // 0.1%
+    volatilityTiers: [
+      { minVol: 0, maxVol: 15, spread: 0.05 },
+      { minVol: 15, maxVol: 30, spread: 0.5 },
+      { minVol: 30, maxVol: 100, spread: 2.0 }
+    ]
+  }
 };
 
 export const AVAILABLE_INDICES: Index[] = [
