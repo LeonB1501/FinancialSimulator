@@ -11,7 +11,7 @@ function getMarketPrice(instrument, history, currentDay, riskFreeRate) {
             return 0;
         default: {
             const assetRef = instrument.fields[0];
-            const ticker = (assetRef.tag === 1) ? assetRef.fields[0] : assetRef.fields[0];
+            const ticker = (assetRef.tag === 1) ? (`${assetRef.fields[1]}x_${assetRef.fields[0]}`) : assetRef.fields[0];
             const matchValue = tryFind((p) => (p.Ticker === ticker), history);
             let matchResult, path_1;
             if (matchValue != null) {

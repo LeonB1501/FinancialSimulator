@@ -1,9 +1,9 @@
-import { length, append, empty, sumBy, isEmpty, partition } from "../fable_modules/fable-library-js.4.27.0/List.js";
+import { length, singleton, append, empty, sumBy, isEmpty, partition } from "../fable_modules/fable-library-js.4.27.0/List.js";
 import { price } from "../Simulation/PricingModels.js";
-import { SimulationRunResult, EvaluationState, Portfolio } from "./EngineTypes.js";
+import { SimulationRunResult, EvaluationState, Transaction, Portfolio } from "./EngineTypes.js";
+import { calculatePortfolioValue } from "./PortfolioQueries.js";
 import { reconcileCash } from "./Reconciler.js";
 import { interpretStep, emptyState } from "./Interpreter.js";
-import { calculatePortfolioValue } from "./PortfolioQueries.js";
 import { setItem } from "../fable_modules/fable-library-js.4.27.0/Array.js";
 
 function processSettlement(portfolio, history, currentDay, riskFreeRate) {
@@ -32,40 +32,56 @@ function processSettlement(portfolio, history, currentDay, riskFreeRate) {
         }, expired, {
             GetZero: () => 0,
             Add: (x, y) => (x + y),
-        }), patternInput[1], portfolio.CompositeRegistry);
+        }), patternInput[1], portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD);
     }
 }
 
-function processCashflows(portfolio, scenario, currentDay, history, riskFreeRate, costs) {
+function processCashflows(portfolio, scenario, currentDay, history, riskFreeRate, costs, taxConfig) {
+    let matchValue;
+    let currentPortfolio = portfolio;
+    let transactions = empty();
+    if ((matchValue = taxConfig.PaymentMode, (matchValue.tag === 1) ? ((currentDay > 0) && ((currentDay % matchValue.fields[0]) === 0)) : ((currentDay > 0) && ((currentDay % 252) === 0)))) {
+        const totalTax = currentPortfolio.TaxLiabilityYTD + (calculatePortfolioValue(currentPortfolio, history, currentDay, riskFreeRate) * taxConfig.WealthTaxRate);
+        if (totalTax > 0) {
+            const patternInput = reconcileCash(currentPortfolio, totalTax, history, currentDay, riskFreeRate, costs);
+            const postTaxPortfolio = patternInput[0];
+            const taxTxn = new Transaction(currentDay, "TAX_PAYMENT", "TAX", 0, 0, -totalTax, 0, 0, totalTax, "PERIODIC_SETTLEMENT");
+            currentPortfolio = (new Portfolio(postTaxPortfolio.Cash, postTaxPortfolio.Positions, postTaxPortfolio.CompositeRegistry, postTaxPortfolio.TaxLots, 0, postTaxPortfolio.RealizedGainsYTD));
+            transactions = append(transactions, append(patternInput[1], singleton(taxTxn)));
+        }
+    }
     if ((currentDay > 0) && ((currentDay % 30) === 0)) {
         const year = currentDay / 365;
         const currentMonth = ~~(currentDay / 30) | 0;
         switch (scenario.tag) {
             case 1: {
                 const p = scenario.fields[0];
-                return [new Portfolio(portfolio.Cash + (p.MonthlyContribution * Math.pow(1 + p.ContributionGrowthRate, Math.floor(year))), portfolio.Positions, portfolio.CompositeRegistry), empty()];
+                const amount = p.MonthlyContribution * Math.pow(1 + p.ContributionGrowthRate, Math.floor(year));
+                currentPortfolio = (new Portfolio(currentPortfolio.Cash + amount, currentPortfolio.Positions, currentPortfolio.CompositeRegistry, currentPortfolio.TaxLots, currentPortfolio.TaxLiabilityYTD, currentPortfolio.RealizedGainsYTD));
+                break;
             }
             case 2: {
                 const p_1 = scenario.fields[0];
                 const inflationFactor = Math.pow(1 + p_1.InflationRate, Math.floor(year));
                 const netWithdrawal = (p_1.MonthlyWithdrawal * inflationFactor) - ((currentMonth >= p_1.PensionStartMonth) ? (p_1.MonthlyPension * inflationFactor) : 0);
                 if (netWithdrawal <= 0) {
-                    return [new Portfolio(portfolio.Cash + Math.abs(netWithdrawal), portfolio.Positions, portfolio.CompositeRegistry), empty()];
+                    currentPortfolio = (new Portfolio(currentPortfolio.Cash + Math.abs(netWithdrawal), currentPortfolio.Positions, currentPortfolio.CompositeRegistry, currentPortfolio.TaxLots, currentPortfolio.TaxLiabilityYTD, currentPortfolio.RealizedGainsYTD));
                 }
-                else if (portfolio.Cash >= netWithdrawal) {
-                    return [new Portfolio(portfolio.Cash - netWithdrawal, portfolio.Positions, portfolio.CompositeRegistry), empty()];
+                else if (currentPortfolio.Cash >= netWithdrawal) {
+                    currentPortfolio = (new Portfolio(currentPortfolio.Cash - netWithdrawal, currentPortfolio.Positions, currentPortfolio.CompositeRegistry, currentPortfolio.TaxLots, currentPortfolio.TaxLiabilityYTD, currentPortfolio.RealizedGainsYTD));
                 }
                 else {
-                    return reconcileCash(portfolio, netWithdrawal, history, currentDay, riskFreeRate, costs);
+                    const patternInput_1 = reconcileCash(currentPortfolio, netWithdrawal, history, currentDay, riskFreeRate, costs);
+                    currentPortfolio = patternInput_1[0];
+                    transactions = append(transactions, patternInput_1[1]);
                 }
+                break;
             }
             default:
-                return [portfolio, empty()];
+                undefined;
         }
     }
-    else {
-        return [portfolio, empty()];
-    }
+    return [currentPortfolio, transactions];
 }
 
 export function evaluate(runId, program, config, history, initialCash) {
@@ -76,10 +92,10 @@ export function evaluate(runId, program, config, history, initialCash) {
         currentState = (new EvaluationState(day, currentState.Portfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
         const settledPortfolio = processSettlement(currentState.Portfolio, history, day, config.RiskFreeRate);
         currentState = (new EvaluationState(currentState.CurrentDay, settledPortfolio, currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, currentState.TransactionHistory));
-        const patternInput = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate, config.ExecutionCosts);
+        const patternInput = processCashflows(currentState.Portfolio, config.Scenario, day, history, config.RiskFreeRate, config.ExecutionCosts, config.Tax);
         currentState = ((TransactionHistory = append(currentState.TransactionHistory, patternInput[1]), new EvaluationState(currentState.CurrentDay, patternInput[0], currentState.ScopeStack, currentState.GlobalScope, currentState.RiskFreeRate, TransactionHistory)));
         if (((length(currentState.Portfolio.Positions) > 0) ? true : (currentState.Portfolio.Cash > 0)) && ((day === 0) ? true : ((day % config.Granularity) === 0))) {
-            currentState = interpretStep(program, currentState, history, config.ExecutionCosts);
+            currentState = interpretStep(program, currentState, history, config.ExecutionCosts, config.Tax);
         }
         const dailyValue = calculatePortfolioValue(currentState.Portfolio, history, day, config.RiskFreeRate);
         setItem(equityCurve, day, dailyValue);

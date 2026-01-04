@@ -26,7 +26,8 @@ import {
   DEFAULT_GBM_PARAMS,
   DEFAULT_GARCH_PARAMS,
   DslError,
-  DEFAULT_EXECUTION_COSTS // <--- ADDED IMPORT
+  DEFAULT_EXECUTION_COSTS,
+  DEFAULT_TAX_CONFIG // <--- Added Import
 } from '../models/strategy.model';
 
 // --- DTO Interfaces matching Backend C# DTOs ---
@@ -272,7 +273,8 @@ export class StrategyService {
       correlationMatrix: strategyData.correlationMatrix,
       customTickers: strategyData.customTickers,
       simulationConfig: strategyData.simulationConfig,
-      executionCosts: strategyData.executionCosts, // Include Costs
+      executionCosts: strategyData.executionCosts, 
+      taxConfig: strategyData.taxConfig, // Include Tax
       status: strategyData.status
     };
 
@@ -311,7 +313,8 @@ export class StrategyService {
       correlationMatrix: strategyData.correlationMatrix,
       customTickers: strategyData.customTickers,
       simulationConfig: strategyData.simulationConfig,
-      executionCosts: strategyData.executionCosts, // Include Costs
+      executionCosts: strategyData.executionCosts, 
+      taxConfig: strategyData.taxConfig, // Include Tax
       status: strategyData.status
     };
 
@@ -408,8 +411,8 @@ export class StrategyService {
       indices: config.indices || [],
       correlationMatrix: config.correlationMatrix || { indices: [], matrix: [] },
       customTickers: config.customTickers || [],
-      // FIX: Map execution costs with default fallback
       executionCosts: config.executionCosts || DEFAULT_EXECUTION_COSTS,
+      taxConfig: config.taxConfig || DEFAULT_TAX_CONFIG, // <--- Added Mapping
       simulationConfig: config.simulationConfig || DEFAULT_SIMULATION_CONFIG,
       dsl: {
         code: dto.dslScript,
@@ -528,8 +531,9 @@ export class StrategyService {
       indices: strategy.indices,
       correlationMatrix: strategy.correlationMatrix,
       customTickers: strategy.customTickers,
+      executionCosts: strategy.executionCosts,
+      taxConfig: strategy.taxConfig, // Load Tax
       simulationConfig: strategy.simulationConfig,
-      executionCosts: strategy.executionCosts, // Load costs
       dsl: strategy.dsl,
     });
   }
@@ -582,5 +586,20 @@ export class StrategyService {
       );
     }
     return this._availableTickers$;
+  }
+
+  getTickerDateRange(symbol: string): Observable<{ startDate: string; endDate: string }> {
+    return this.api.get<{ startDate: string; endDate: string }>(`/MarketData/${symbol}/date-range`).pipe(
+      catchError(err => {
+        console.error(`Failed to fetch date range for ${symbol}`, err);
+        // Return a default range if API fails
+        const today = new Date();
+        const fiveYearsAgo = new Date(today.getFullYear() - 5, today.getMonth(), today.getDate());
+        return of({
+          startDate: fiveYearsAgo.toISOString().split('T')[0],
+          endDate: today.toISOString().split('T')[0]
+        });
+      })
+    );
   }
 }

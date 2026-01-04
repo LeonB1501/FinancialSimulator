@@ -43,6 +43,7 @@ export interface SimulationResults {
   // NEW: Cost Analysis (Monte Carlo Averages)
   averageCommission: number;
   averageSlippage: number;
+  averageTax: number; // <--- Added
 }
 
 // ============================================
@@ -53,7 +54,7 @@ export interface HistoricTransaction {
   day: number;
   date: Date;
   ticker: string;
-  type: 'BUY' | 'SELL';
+  type: 'BUY' | 'SELL' | 'TAX'; // <--- Added TAX type
   quantity: number;
   price: number;
   value: number;
@@ -61,6 +62,7 @@ export interface HistoricTransaction {
   // NEW: Cost Breakdown per Trade
   commission: number;
   slippage: number;
+  tax: number; // <--- Added
 }
 
 export interface HistoricBacktestResults {
@@ -97,6 +99,7 @@ export interface HistoricBacktestResults {
   // NEW: Total Costs
   totalCommission: number;
   totalSlippage: number;
+  totalTax: number; // <--- Added
 }
 
 export interface ResultsMetadata {

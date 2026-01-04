@@ -11,7 +11,9 @@ import {
   Granularity, 
   AccumulationScenario, 
   RetirementScenario,
-  HistoricScenario
+  HistoricScenario,
+  CustomTicker,
+  VolatilityTier
 } from '../models/strategy.model';
 import { 
   SimulationState,
@@ -43,7 +45,7 @@ export class SimulationService {
   });
   private readonly _error = signal<string | null>(null);
 
-  // Progress stream for real-time updates
+  // Progress stream
   private readonly progressSubject = new Subject<SimulationProgress>();
   readonly progress$ = this.progressSubject.asObservable();
 
@@ -93,16 +95,14 @@ export class SimulationService {
 
     this.progressSubject.next(this.currentJob.progress);
 
-    // --- BRANCH: HISTORIC BACKTEST ---
     if (strategy.mode === SimulationMode.Historic) {
       return this.executeHistoricBacktest(strategy, startTime);
     }
 
-    // --- BRANCH: MONTE CARLO (Worker) ---
     const historyRequests: Observable<any>[] = [];
     const tickersNeedingHistory: string[] = [];
 
-    strategy.indices.forEach(idx => {
+    strategy.indices.forEach((idx: Index) => {
       if (idx.model === StochasticModel.BlockedBootstrap) {
         historyRequests.push(this.strategyService.getHistoricalData(idx.symbol));
         tickersNeedingHistory.push(idx.symbol);
@@ -135,8 +135,14 @@ export class SimulationService {
     this._state.set(SimulationState.Running);
     this.updateProgress(0, 1, 'Running Historic Backtest on Server...', 0, 0);
 
-    // Pass executionCosts to the API
-    return this.runHistoricBacktestApi(strategy.id, new Date(s.startDate), new Date(s.endDate), s.benchmarkTicker, strategy.executionCosts)
+    return this.runHistoricBacktestApi(
+      strategy.id, 
+      new Date(s.startDate), 
+      new Date(s.endDate), 
+      s.benchmarkTicker, 
+      strategy.executionCosts,
+      strategy.taxConfig
+    )
       .pipe(
         switchMap((response: any) => {
           if (!response.success) {
@@ -297,12 +303,20 @@ export class SimulationService {
 
   // --- Historic Backtest ---
 
-  private runHistoricBacktestApi(strategyId: string, startDate: Date, endDate: Date, benchmarkTicker: string = 'spy', executionCosts: any = null): Observable<any> {
+  private runHistoricBacktestApi(
+    strategyId: string, 
+    startDate: Date, 
+    endDate: Date, 
+    benchmarkTicker: string = 'spy', 
+    executionCosts: any = null,
+    taxConfig: any = null
+  ): Observable<any> {
     return this.api.post<any>(`/strategies/${strategyId}/run-historic`, {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       benchmarkTicker,
-      executionCosts // Pass costs to backend
+      executionCosts,
+      taxConfig
     });
   }
 
@@ -358,7 +372,7 @@ export class SimulationService {
   // ============================================
 
   private mapStrategyToFableInput(strategy: Strategy, historyMap: Record<string, any[]>): any {
-    const assets = strategy.indices.map(idx => {
+    const assets = strategy.indices.map((idx: Index) => {
       return {
         Ticker: idx.symbol.toLowerCase(),
         InitialPrice: (idx.parameters as any).s0 ?? 100.0,
@@ -367,7 +381,7 @@ export class SimulationService {
     });
 
     if (strategy.customTickers) {
-      strategy.customTickers.forEach(t => {
+      strategy.customTickers.forEach((t: CustomTicker) => {
         assets.push({
           Ticker: t.symbol.toLowerCase(),
           InitialPrice: (t.parameters as any).s0 ?? 100.0,
@@ -433,12 +447,23 @@ export class SimulationService {
       },
       Slippage: {
         DefaultSpread: strategy.executionCosts.slippage.defaultSpread,
-        Tiers: strategy.executionCosts.slippage.volatilityTiers.map(t => ({
+        Tiers: strategy.executionCosts.slippage.volatilityTiers.map((t: VolatilityTier) => ({
           MinVol: t.minVol,
           MaxVol: t.maxVol,
           Spread: t.spread
         }))
       }
+    } : null;
+
+    // FIX: Map Tax Config to F# Discriminated Union Format
+    const tax = strategy.taxConfig ? {
+      PaymentMode: strategy.taxConfig.paymentMode === 'Periodic' 
+        ? ["PeriodicSettlement", strategy.taxConfig.settlementFrequency || 252]
+        : ["ImmediateWithholding"],
+      ShortTermRate: strategy.taxConfig.shortTermRate,
+      LongTermRate: strategy.taxConfig.longTermRate,
+      LongTermThreshold: strategy.taxConfig.longTermThreshold,
+      WealthTaxRate: strategy.taxConfig.wealthTaxRate
     } : null;
 
     return {
@@ -453,7 +478,8 @@ export class SimulationService {
         HistoricalData: historicalData,
         StartDate: new Date().toISOString(),
         Scenario: scenario,
-        ExecutionCosts: costs // Pass costs to F#
+        ExecutionCosts: costs,
+        Tax: tax
       },
       DslCode: strategy.dsl.code || "buy 100% spy",
       InitialCash: (strategy.scenario as any).initialLumpSum ?? (strategy.scenario as any).initialPortfolio ?? 100000,
@@ -586,7 +612,7 @@ export class SimulationService {
       metadata: {
         mode: strategy.mode,
         model: strategy.indices[0]?.model,
-        indices: strategy.indices.map(i => i.symbol),
+        indices: strategy.indices.map((i: Index) => i.symbol),
         iterations: strategy.simulationConfig.iterations,
         granularity: strategy.simulationConfig.granularity,
         riskFreeRate: strategy.simulationConfig.riskFreeRate,
@@ -647,9 +673,9 @@ export class SimulationService {
       },
       wealthDistribution: { bins: [], referenceLines: [] },
       timeToTargetDistribution: null,
-      // NEW: Map Cost Averages
       averageCommission: report.AverageCommission || 0,
-      averageSlippage: report.AverageSlippage || 0
+      averageSlippage: report.AverageSlippage || 0,
+      averageTax: report.AverageTax || 0
     };
   }
 

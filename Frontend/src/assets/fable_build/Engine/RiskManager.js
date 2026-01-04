@@ -76,7 +76,7 @@ function removeUnit(portfolio, unit) {
     }) : singleton(unit.fields[0].Id, {
         Compare: comparePrimitives,
     });
-    return new Portfolio(portfolio.Cash, filter((p_2) => !FSharpSet__Contains(idsToRemove, p_2.Id), portfolio.Positions), portfolio.CompositeRegistry);
+    return new Portfolio(portfolio.Cash, filter((p_2) => !FSharpSet__Contains(idsToRemove, p_2.Id), portfolio.Positions), portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD);
 }
 
 function getUnderlyingTicker(instrument) {
@@ -165,7 +165,7 @@ function simulateTrade(portfolio, trade, marketData, currentDay, riskFreeRate) {
         case 0: {
             const p = trade.fields[0];
             const cost = calculatePositionValue(new PositionInstance("00000000-0000-0000-0000-000000000000", undefined, "", undefined, undefined, 0, 0, p.Quantity, p.Instrument), currentScenario, marketData, currentDay, riskFreeRate);
-            return new Portfolio(portfolio.Cash - cost, cons(new PositionInstance(newGuid(), undefined, defaultArg(p.DefinitionName, ""), p.ComponentName, undefined, cost / p.Quantity, currentDay, p.Quantity, p.Instrument), portfolio.Positions), portfolio.CompositeRegistry);
+            return new Portfolio(portfolio.Cash - cost, cons(new PositionInstance(newGuid(), undefined, defaultArg(p.DefinitionName, ""), p.ComponentName, undefined, cost / p.Quantity, currentDay, p.Quantity, p.Instrument), portfolio.Positions), portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD);
         }
         case 1: {
             const p_1 = trade.fields[0];
@@ -206,7 +206,7 @@ function simulateTrade(portfolio, trade, marketData, currentDay, riskFreeRate) {
             };
             return new Portfolio(portfolio.Cash + proceeds, reducePositions(p_1.Quantity, sortBy((p_2) => p_2.BuyDate, portfolio.Positions, {
                 Compare: comparePrimitives,
-            }), empty()), portfolio.CompositeRegistry);
+            }), empty()), portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD);
         }
         default:
             return portfolio;
@@ -252,7 +252,7 @@ export function analyzeAndPlanRebalance(target, targetPercentage, portfolio, mar
     const targetQty = (targetPrice === 0) ? 0 : (targetValue / targetPrice);
     const cost = targetQty * targetPrice;
     const targetPositionInstance = new PositionInstance(newGuid(), undefined, "REBALANCE_TARGET", undefined, undefined, targetPrice, currentDay, targetQty, patternInput[1]);
-    const goalPortfolio = new Portfolio(portfolio.Cash - cost, cons(targetPositionInstance, portfolio.Positions), portfolio.CompositeRegistry);
+    const goalPortfolio = new Portfolio(portfolio.Cash - cost, cons(targetPositionInstance, portfolio.Positions), portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD);
     const startBP = calculateBuyingPower(goalPortfolio, marketData, currentDay, riskFreeRate);
     if (startBP >= 0) {
         return new RebalanceAnalysis(true, empty(), "Sufficient Capital");
@@ -267,7 +267,7 @@ export function analyzeAndPlanRebalance(target, targetPercentage, portfolio, mar
                 Impact: calculateBuyingPower(new Portfolio(testPortfolio.Cash + ((unit_1.tag === 1) ? sumBy((p_4) => calculatePositionValue(p_4, currentScenario, marketData, currentDay, riskFreeRate), unit_1.fields[0].Positions, {
                     GetZero: () => 0,
                     Add: (x_1, y_1) => (x_1 + y_1),
-                }) : calculatePositionValue(unit_1.fields[0], currentScenario, marketData, currentDay, riskFreeRate)), testPortfolio.Positions, testPortfolio.CompositeRegistry), marketData, currentDay, riskFreeRate) - startBP,
+                }) : calculatePositionValue(unit_1.fields[0], currentScenario, marketData, currentDay, riskFreeRate)), testPortfolio.Positions, testPortfolio.CompositeRegistry, testPortfolio.TaxLots, testPortfolio.TaxLiabilityYTD, testPortfolio.RealizedGainsYTD), marketData, currentDay, riskFreeRate) - startBP,
                 Unit: unit_1,
             };
         }, filter((unit) => {

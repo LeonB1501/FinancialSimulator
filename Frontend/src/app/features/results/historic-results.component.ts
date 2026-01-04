@@ -253,28 +253,32 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                     <mat-icon class="text-accent-500 mr-2">payments</mat-icon>
                     Execution Analysis
                 </h3>
-                <div class="grid md:grid-cols-3 gap-6">
+                <div class="grid md:grid-cols-4 gap-6">
                     <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
                         <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Commissions</p>
                         <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
                             {{ results()!.totalCommission | currency }}
                         </p>
-                        <p class="text-xs text-surface-500 mt-1">Fixed fees paid</p>
                     </div>
                     <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
                         <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Slippage</p>
                         <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
                             {{ results()!.totalSlippage | currency }}
                         </p>
-                        <p class="text-xs text-surface-500 mt-1">Lost to bid/ask spread</p>
                     </div>
                     <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
-                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Cost Drag</p>
+                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Tax</p>
+                        <p class="text-xl font-bold text-surface-900 dark:text-surface-100">
+                            {{ results()!.totalTax | currency }}
+                        </p>
+                    </div>
+                    <div class="p-4 bg-surface-50 dark:bg-surface-700/50 rounded-xl">
+                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-1">Total Drag</p>
                         <p class="text-xl font-bold text-red-600 dark:text-red-400">
-                            {{ (results()!.totalCommission + results()!.totalSlippage) | currency }}
+                            {{ (results()!.totalCommission + results()!.totalSlippage + results()!.totalTax) | currency }}
                         </p>
                         <p class="text-xs text-surface-500 mt-1">
-                            {{ ((results()!.totalCommission + results()!.totalSlippage) / results()!.equityCurve[0] * 100) | number:'1.2-2' }}% of initial capital
+                            {{ ((results()!.totalCommission + results()!.totalSlippage + results()!.totalTax) / results()!.equityCurve[0] * 100) | number:'1.2-2' }}% of initial capital
                         </p>
                     </div>
                 </div>
@@ -369,7 +373,7 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                           <td class="py-3 px-4">
                             <span 
                               class="px-2 py-1 rounded-md text-xs font-medium"
-                              [class]="txn.type === 'BUY' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'"
+                              [class]="txn.type === 'BUY' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : (txn.type === 'SELL' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300')"
                             >{{ txn.type }}</span>
                           </td>
                           <td class="py-3 px-4 text-sm text-surface-600 dark:text-surface-400 text-right">{{ txn.quantity | number:'1.2-2' }}</td>
@@ -378,7 +382,7 @@ import { HistoricBacktestResults, HistoricTransaction } from '@core/models/resul
                             {{ txn.type === 'BUY' ? '-' : '+' }}{{ txn.value | currency }}
                           </td>
                           <td class="py-3 px-4 text-sm text-surface-500 dark:text-surface-400 text-right">
-                             {{ (txn.commission + txn.slippage) | currency }}
+                             {{ (txn.commission + txn.slippage + txn.tax) | currency }}
                           </td>
                         </tr>
                       }
@@ -591,7 +595,7 @@ export class HistoricResultsComponent implements OnInit {
         let cumulativeCost = 0;
         const costMap = new Map<number, number>(); // Day -> Cost
         r.transactions.forEach(t => {
-            const cost = t.commission + t.slippage;
+            const cost = t.commission + t.slippage + t.tax; // Include Tax
             costMap.set(t.day, (costMap.get(t.day) || 0) + cost);
         });
 
@@ -705,7 +709,7 @@ export class HistoricResultsComponent implements OnInit {
              const lines = ['--- TRADES ---'];
              txns.forEach(t => {
                 const tag = t.tag ? ` (${t.tag})` : '';
-                const type = t.type === 'BUY' ? '🟢 Buy' : '🔴 Sell';
+                const type = t.type === 'BUY' ? '🟢 Buy' : (t.type === 'SELL' ? '🔴 Sell' : '⚪ Tax');
                 lines.push(`${type} ${t.quantity.toFixed(2)} ${t.ticker.toUpperCase()} ${tag}`);
              });
              return lines;
@@ -766,9 +770,10 @@ export class HistoricResultsComponent implements OnInit {
           const startDate = dates.length > 0 ? new Date(dates[0]) : new Date();
           const endDate = dates.length > 0 ? new Date(dates[dates.length - 1]) : new Date();
 
-          // Calculate total costs if backend didn't aggregate (it should have, but safe fallback)
+          // Calculate totals if backend didn't aggregate
           const totalComm = data.totalCommission ?? transactions.reduce((sum: number, t: any) => sum + (t.commission || 0), 0);
           const totalSlip = data.totalSlippage ?? transactions.reduce((sum: number, t: any) => sum + (t.slippage || 0), 0);
+          const totalTax = data.totalTax ?? transactions.reduce((sum: number, t: any) => sum + (t.tax || 0), 0);
 
           const enrichedData: HistoricBacktestResults = {
             id: data.id || strategyId,
@@ -799,7 +804,8 @@ export class HistoricResultsComponent implements OnInit {
 
             // NEW: Costs
             totalCommission: totalComm,
-            totalSlippage: totalSlip
+            totalSlippage: totalSlip,
+            totalTax: totalTax // <--- Added
           };
           
           this.results.set(enrichedData);

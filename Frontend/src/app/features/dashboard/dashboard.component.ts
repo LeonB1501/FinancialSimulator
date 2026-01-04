@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
@@ -15,6 +15,7 @@ import { SimulationService } from '@core/services/simulation.service';
 import { SimulationQueueService } from '@core/services/simulation-queue.service';
 import { NotificationService } from '@core/services/notification.service';
 import { PermissionsService } from '@core/services/permissions.service';
+import { PaymentService } from '@core/services/payment.service';
 import { StrategySummary, Strategy } from '@core/models';
 
 interface ActivityItem {
@@ -298,6 +299,7 @@ interface QuickStats {
                     </button>
                 } @else {
                     <button 
+                      (click)="onManageSubscription()"
                       class="w-full mt-6 btn-secondary btn-md"
                     >
                       Manage Subscription
@@ -315,6 +317,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
   readonly strategyService = inject(StrategyService);
   readonly permissionsService = inject(PermissionsService);
+  readonly paymentService = inject(PaymentService);
   private readonly simulationService = inject(SimulationService);
   private readonly queueService = inject(SimulationQueueService);
   private readonly notificationService = inject(NotificationService);
@@ -442,6 +445,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onEditStrategy(strategy: StrategySummary): void {
     window.location.href = `/build?edit=${strategy.id}`;
+  }
+
+  onManageSubscription(): void {
+    this.paymentService.manageSubscription();
   }
 
   onDeleteStrategy(strategy: StrategySummary): void {

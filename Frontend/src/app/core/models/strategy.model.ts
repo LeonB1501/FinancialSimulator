@@ -115,7 +115,7 @@ export interface CustomTicker {
 }
 
 // ============================================
-// EXECUTION & COSTS (NEW)
+// EXECUTION & COSTS
 // ============================================
 
 export interface VolatilityTier {
@@ -136,6 +136,21 @@ export interface CostModel {
 }
 
 export type ExecutionCosts = CostModel;
+
+// ============================================
+// TAX CONFIGURATION (NEW)
+// ============================================
+
+export type TaxPaymentMode = 'Immediate' | 'Periodic';
+
+export interface TaxConfig {
+  paymentMode: TaxPaymentMode;
+  settlementFrequency?: number; // Days (e.g. 252 for yearly)
+  shortTermRate: number;        // 0.0 to 1.0
+  longTermRate: number;         // 0.0 to 1.0
+  longTermThreshold: number;    // Days (e.g. 365)
+  wealthTaxRate: number;        // 0.0 to 1.0 (applied to total equity)
+}
 
 // ============================================
 // SIMULATION PARAMETERS
@@ -213,8 +228,9 @@ export interface Strategy {
   indices: Index[];
   correlationMatrix: CorrelationMatrix;
   customTickers: CustomTicker[];
-  // NEW: Execution Costs
   executionCosts: ExecutionCosts;
+  // NEW: Tax Config
+  taxConfig: TaxConfig; 
   simulationConfig: SimulationConfig;
   dsl: DslCode;
   status: StrategyStatus;
@@ -232,8 +248,9 @@ export interface StrategyDraft {
   indices?: Index[];
   correlationMatrix?: CorrelationMatrix;
   customTickers?: CustomTicker[];
-  // NEW: Execution Costs
   executionCosts?: ExecutionCosts;
+  // NEW: Tax Config
+  taxConfig?: TaxConfig;
   simulationConfig?: Partial<SimulationConfig>;
   dsl?: Partial<DslCode>;
 }
@@ -310,7 +327,6 @@ export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   riskFreeRate: 0.04,
 };
 
-// NEW: Default Costs
 export const DEFAULT_EXECUTION_COSTS: ExecutionCosts = {
   commission: {
     perOrder: 1.0,
@@ -324,6 +340,16 @@ export const DEFAULT_EXECUTION_COSTS: ExecutionCosts = {
       { minVol: 30, maxVol: 100, spread: 2.0 }
     ]
   }
+};
+
+// NEW: Default Tax Config (Tax Free / Deferred)
+export const DEFAULT_TAX_CONFIG: TaxConfig = {
+  paymentMode: 'Periodic',
+  settlementFrequency: 252,
+  shortTermRate: 0.0,
+  longTermRate: 0.0,
+  longTermThreshold: 365,
+  wealthTaxRate: 0.0
 };
 
 export const AVAILABLE_INDICES: Index[] = [

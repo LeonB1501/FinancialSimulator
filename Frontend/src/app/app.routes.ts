@@ -30,7 +30,7 @@ export const routes: Routes = [
   },
   {
     path: 'results/:id',
-    loadComponent: () => import('./features/results/results.component').then(m => m.ResultsComponent),
+    loadComponent: () => import('./features/results/monte-carlo-results.component').then(m => m.ResultsComponent),
     canActivate: [authGuard],
   },
   {

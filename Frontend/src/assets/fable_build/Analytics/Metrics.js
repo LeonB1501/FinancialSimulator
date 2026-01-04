@@ -120,6 +120,9 @@ export function calculateSingleRun(run, config) {
     }), sumBy_1((t_1) => t_1.Slippage, run.TransactionHistory, {
         GetZero: () => 0,
         Add: (x_1, y_1) => (x_1 + y_1),
+    }), sumBy_1((t_2) => t_2.Tax, run.TransactionHistory, {
+        GetZero: () => 0,
+        Add: (x_2, y_2) => (x_2 + y_2),
     }));
 }
 

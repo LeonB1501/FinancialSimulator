@@ -3,7 +3,7 @@ import { bool_type, array_type, class_type, tuple_type, union_type, list_type, r
 import { PositionExpression_$reflection, AssetReference_$reflection } from "../Language/AST.js";
 
 export class Transaction extends Record {
-    constructor(Date$, Ticker, Type, Quantity, Price, Value, Commission, Slippage, Tag) {
+    constructor(Date$, Ticker, Type, Quantity, Price, Value, Commission, Slippage, Tax, Tag) {
         super();
         this.Date = (Date$ | 0);
         this.Ticker = Ticker;
@@ -13,12 +13,13 @@ export class Transaction extends Record {
         this.Value = Value;
         this.Commission = Commission;
         this.Slippage = Slippage;
+        this.Tax = Tax;
         this.Tag = Tag;
     }
 }
 
 export function Transaction_$reflection() {
-    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type], ["Commission", float64_type], ["Slippage", float64_type], ["Tag", option_type(string_type)]]);
+    return record_type("EngineTypes.Transaction", [], Transaction, () => [["Date", int32_type], ["Ticker", string_type], ["Type", string_type], ["Quantity", float64_type], ["Price", float64_type], ["Value", float64_type], ["Commission", float64_type], ["Slippage", float64_type], ["Tax", float64_type], ["Tag", option_type(string_type)]]);
 }
 
 export class HestonParameters extends Record {
@@ -211,8 +212,38 @@ export function ExecutionCosts_$reflection() {
     return record_type("EngineTypes.ExecutionCosts", [], ExecutionCosts, () => [["Commission", CommissionModel_$reflection()], ["Slippage", SlippageModel_$reflection()]]);
 }
 
+export class TaxPaymentMode extends Union {
+    constructor(tag, fields) {
+        super();
+        this.tag = tag;
+        this.fields = fields;
+    }
+    cases() {
+        return ["ImmediateWithholding", "PeriodicSettlement"];
+    }
+}
+
+export function TaxPaymentMode_$reflection() {
+    return union_type("EngineTypes.TaxPaymentMode", [], TaxPaymentMode, () => [[], [["Days", int32_type]]]);
+}
+
+export class TaxConfig extends Record {
+    constructor(PaymentMode, ShortTermRate, LongTermRate, LongTermThreshold, WealthTaxRate) {
+        super();
+        this.PaymentMode = PaymentMode;
+        this.ShortTermRate = ShortTermRate;
+        this.LongTermRate = LongTermRate;
+        this.LongTermThreshold = (LongTermThreshold | 0);
+        this.WealthTaxRate = WealthTaxRate;
+    }
+}
+
+export function TaxConfig_$reflection() {
+    return record_type("EngineTypes.TaxConfig", [], TaxConfig, () => [["PaymentMode", TaxPaymentMode_$reflection()], ["ShortTermRate", float64_type], ["LongTermRate", float64_type], ["LongTermThreshold", int32_type], ["WealthTaxRate", float64_type]]);
+}
+
 export class SimulationConfiguration extends Record {
-    constructor(Assets, Correlations, TradingDays, Iterations, RiskFreeRate, Granularity, HistoricalData, StartDate, Scenario, ExecutionCosts) {
+    constructor(Assets, Correlations, TradingDays, Iterations, RiskFreeRate, Granularity, HistoricalData, StartDate, Scenario, ExecutionCosts, Tax) {
         super();
         this.Assets = Assets;
         this.Correlations = Correlations;
@@ -224,11 +255,12 @@ export class SimulationConfiguration extends Record {
         this.StartDate = StartDate;
         this.Scenario = Scenario;
         this.ExecutionCosts = ExecutionCosts;
+        this.Tax = Tax;
     }
 }
 
 export function SimulationConfiguration_$reflection() {
-    return record_type("EngineTypes.SimulationConfiguration", [], SimulationConfiguration, () => [["Assets", list_type(AssetDefinition_$reflection())], ["Correlations", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [tuple_type(string_type, string_type), float64_type])], ["TradingDays", int32_type], ["Iterations", int32_type], ["RiskFreeRate", float64_type], ["Granularity", int32_type], ["HistoricalData", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [string_type, array_type(MarketDataPoint_$reflection())])], ["StartDate", class_type("System.DateTime")], ["Scenario", FinancialScenario_$reflection()], ["ExecutionCosts", ExecutionCosts_$reflection()]]);
+    return record_type("EngineTypes.SimulationConfiguration", [], SimulationConfiguration, () => [["Assets", list_type(AssetDefinition_$reflection())], ["Correlations", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [tuple_type(string_type, string_type), float64_type])], ["TradingDays", int32_type], ["Iterations", int32_type], ["RiskFreeRate", float64_type], ["Granularity", int32_type], ["HistoricalData", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [string_type, array_type(MarketDataPoint_$reflection())])], ["StartDate", class_type("System.DateTime")], ["Scenario", FinancialScenario_$reflection()], ["ExecutionCosts", ExecutionCosts_$reflection()], ["Tax", TaxConfig_$reflection()]]);
 }
 
 export class ConcreteOption extends Record {
@@ -294,17 +326,34 @@ export function CompositeMetadata_$reflection() {
     return record_type("EngineTypes.CompositeMetadata", [], CompositeMetadata, () => [["GroupId", class_type("System.Guid")], ["DefinitionName", string_type], ["OriginalExpression", PositionExpression_$reflection()], ["BuyDate", int32_type], ["InitialQuantity", float64_type]]);
 }
 
+export class TaxLot extends Record {
+    constructor(Ticker, Quantity, BuyPrice, BuyDate) {
+        super();
+        this.Ticker = Ticker;
+        this.Quantity = Quantity;
+        this.BuyPrice = BuyPrice;
+        this.BuyDate = (BuyDate | 0);
+    }
+}
+
+export function TaxLot_$reflection() {
+    return record_type("EngineTypes.TaxLot", [], TaxLot, () => [["Ticker", string_type], ["Quantity", float64_type], ["BuyPrice", float64_type], ["BuyDate", int32_type]]);
+}
+
 export class Portfolio extends Record {
-    constructor(Cash, Positions, CompositeRegistry) {
+    constructor(Cash, Positions, CompositeRegistry, TaxLots, TaxLiabilityYTD, RealizedGainsYTD) {
         super();
         this.Cash = Cash;
         this.Positions = Positions;
         this.CompositeRegistry = CompositeRegistry;
+        this.TaxLots = TaxLots;
+        this.TaxLiabilityYTD = TaxLiabilityYTD;
+        this.RealizedGainsYTD = RealizedGainsYTD;
     }
 }
 
 export function Portfolio_$reflection() {
-    return record_type("EngineTypes.Portfolio", [], Portfolio, () => [["Cash", float64_type], ["Positions", list_type(PositionInstance_$reflection())], ["CompositeRegistry", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [class_type("System.Guid"), CompositeMetadata_$reflection()])]]);
+    return record_type("EngineTypes.Portfolio", [], Portfolio, () => [["Cash", float64_type], ["Positions", list_type(PositionInstance_$reflection())], ["CompositeRegistry", class_type("Microsoft.FSharp.Collections.FSharpMap`2", [class_type("System.Guid"), CompositeMetadata_$reflection()])], ["TaxLots", list_type(TaxLot_$reflection())], ["TaxLiabilityYTD", float64_type], ["RealizedGainsYTD", float64_type]]);
 }
 
 export class Value extends Union {

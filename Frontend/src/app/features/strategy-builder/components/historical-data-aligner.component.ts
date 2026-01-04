@@ -98,7 +98,6 @@ interface TickerAvailability {
             </div>
           }
 
-          <!-- FIX: Added pointer-events-none class binding to prevent flickering during drag -->
           <svg 
             #timelineSvg 
             class="w-full h-auto" 
@@ -205,7 +204,7 @@ interface TickerAvailability {
               (change)="onDateInput('start', $event)"
               [min]="formatDateForInput(minDate())"
               [max]="formatDateForInput(scenario()?.endDate)"
-              class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100"
+              class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded-lg text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
           
@@ -217,7 +216,7 @@ interface TickerAvailability {
               (change)="onDateInput('end', $event)"
               [min]="formatDateForInput(scenario()?.startDate)"
               [max]="formatDateForInput(maxDate())"
-              class="input dark:bg-surface-700 dark:border-surface-600 dark:text-surface-100"
+              class="w-full px-4 py-3 bg-surface-50 dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded-lg text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-accent-500"
             />
           </div>
         </div>
@@ -247,7 +246,7 @@ export class HistoricalDataAlignerComponent implements OnInit {
   // Timeline Config
   readonly timelineStartYear = 1993;
   readonly timelineEndYear = new Date().getFullYear();
-  readonly Math = Math; // Expose Math to template
+  readonly Math = Math; 
 
   // State
   readonly selectedTickers = signal<string[]>([]);
@@ -258,7 +257,7 @@ export class HistoricalDataAlignerComponent implements OnInit {
   readonly selectedStartYear = signal<number>(2010);
   readonly selectedEndYear = signal<number>(2020);
 
-  // Local scenario state to avoid depending on async parent updates
+  // Local scenario state
   private localScenario = signal<HistoricScenario | null>(null);
 
   // Form Control for Search
@@ -270,7 +269,6 @@ export class HistoricalDataAlignerComponent implements OnInit {
     map(value => this._filter(value || '')),
   );
 
-  // Computed - prefer local state, fallback to draft
   readonly scenario = computed(() => this.localScenario() || (this.draft.scenario as HistoricScenario | undefined));
   
   readonly validRange = computed(() => {
@@ -304,7 +302,7 @@ export class HistoricalDataAlignerComponent implements OnInit {
   });
 
   ngOnInit() {
-    // Load available tickers from backend
+    // Load available tickers
     this.loadingTickers.set(true);
     this.strategyService.getAvailableTickers().subscribe(tickers => {
       this.availableTickers.set(tickers);
@@ -318,14 +316,13 @@ export class HistoricalDataAlignerComponent implements OnInit {
       this.loadTickerData(tickers);
     }
 
-    // Initialize scenario - always set local state first
+    // Initialize scenario
     const existingScenario = this.draft.scenario as HistoricScenario | undefined;
     if (existingScenario?.startDate && existingScenario?.endDate) {
       this.localScenario.set(existingScenario);
       this.selectedStartYear.set(this.dateToYear(new Date(existingScenario.startDate)));
       this.selectedEndYear.set(this.dateToYear(new Date(existingScenario.endDate)));
     } else {
-      // No existing scenario - use defaults and emit
       this.localScenario.set(DEFAULT_HISTORIC_SCENARIO);
       this.selectedStartYear.set(this.dateToYear(new Date(DEFAULT_HISTORIC_SCENARIO.startDate)));
       this.selectedEndYear.set(this.dateToYear(new Date(DEFAULT_HISTORIC_SCENARIO.endDate)));
@@ -343,39 +340,24 @@ export class HistoricalDataAlignerComponent implements OnInit {
     for (let i = 0; i < tickers.length; i++) {
       const ticker = tickers[i];
       try {
-        // Fetch history to determine start/end dates
-        const history = await firstValueFrom(this.strategyService.getHistoricalData(ticker));
+        // Use the new API endpoint for date range
+        const range = await firstValueFrom(this.strategyService.getTickerDateRange(ticker));
         
-        if (history && history.length > 0) {
-          // Assuming history is sorted, or backend returns dates. 
-          // Since getHistoricalData returns {price, vol}, we assume it starts from 1993 or later.
-          // For MVP, we'll approximate based on array length assuming daily data ending today.
-          // Ideally, backend should return { startDate, endDate } metadata.
-          
-          // Hack for MVP: Assume data ends today and calculate start based on length
-          const endDate = new Date();
-          const tradingDays = history.length;
-          const yearsOfData = tradingDays / 252;
-          const startDate = new Date();
-          startDate.setFullYear(endDate.getFullYear() - Math.floor(yearsOfData));
-
-          availability.push({
-            ticker: ticker.toUpperCase(),
-            startYear: this.dateToYear(startDate),
-            endYear: this.dateToYear(endDate),
-            color: colors[i % colors.length]
-          });
-        } else {
-            // Fallback if no data found (e.g. mock mode off but DB empty)
-            availability.push({
-                ticker: ticker.toUpperCase(),
-                startYear: 2000,
-                endYear: 2024,
-                color: '#94A3B8' // Grey for missing data
-            });
-        }
+        availability.push({
+          ticker: ticker.toUpperCase(),
+          startYear: this.dateToYear(new Date(range.startDate)),
+          endYear: this.dateToYear(new Date(range.endDate)),
+          color: colors[i % colors.length]
+        });
       } catch (e) {
         console.error(`Failed to load data for ${ticker}`, e);
+        // Fallback visual
+        availability.push({
+            ticker: ticker.toUpperCase(),
+            startYear: 2000,
+            endYear: 2024,
+            color: '#94A3B8'
+        });
       }
     }
 
@@ -405,19 +387,17 @@ export class HistoricalDataAlignerComponent implements OnInit {
   }
 
   private updateDraftIndices(tickers: string[]) {
-    // Update the main draft object so other steps know about these assets
     const indices: Index[] = tickers.map(t => ({
       symbol: t,
       name: t,
-      model: StochasticModel.BlockedBootstrap, // Default for historic
-      parameters: DEFAULT_HESTON_PARAMS // Placeholder
+      model: StochasticModel.BlockedBootstrap, 
+      parameters: DEFAULT_HESTON_PARAMS 
     }));
     this.strategyService.updateDraft({ indices });
   }
 
   private _filter(value: string): string[] {
     const filterValue = value.toLowerCase();
-    // Exclude already selected tickers from suggestions
     const selected = this.selectedTickers();
     return this.availableTickers()
       .filter(option => !selected.includes(option))
@@ -432,15 +412,9 @@ export class HistoricalDataAlignerComponent implements OnInit {
     return 50 + position * 700; // 50px padding, 700px width
   }
 
-  getXYear(x: number): number {
-    const range = this.timelineEndYear - this.timelineStartYear;
-    const position = (x - 50) / 700;
-    return this.timelineStartYear + position * range;
-  }
-
   // --- Drag & Drop ---
 
-  public isDragging = false; // FIX: Made public for template access
+  public isDragging = false;
   private dragTarget: 'start' | 'end' | 'range' | null = null;
   private dragStartSvgX = 0;
   private initialStartYear = 0;
@@ -458,22 +432,18 @@ export class HistoricalDataAlignerComponent implements OnInit {
   @HostListener('window:mousemove', ['$event'])
   onDrag(event: MouseEvent) {
     if (!this.isDragging || !this.dragTarget) return;
-    event.preventDefault(); // Stop text selection
+    event.preventDefault(); 
 
-    // Convert to SVG coordinates for accurate calculation
     const currentSvgX = this.screenToSvgX(event.clientX);
     const deltaSvgPixels = currentSvgX - this.dragStartSvgX;
     const svgPixelPerYear = 700 / (this.timelineEndYear - this.timelineStartYear);
     const deltaYears = deltaSvgPixels / svgPixelPerYear;
 
-    // FIX: Simplified drag logic to prevent flickering
-    // We calculate raw new values first
     let newStart = this.initialStartYear;
     let newEnd = this.initialEndYear;
 
     if (this.dragTarget === 'start') {
       newStart = this.initialStartYear + deltaYears;
-      // Simple clamp, don't snap yet
       newStart = Math.min(newStart, this.selectedEndYear() - 0.5); 
     } else if (this.dragTarget === 'end') {
       newEnd = this.initialEndYear + deltaYears;
@@ -484,7 +454,6 @@ export class HistoricalDataAlignerComponent implements OnInit {
       newEnd = newStart + duration;
     }
 
-    // Update signals directly for smooth UI
     this.selectedStartYear.set(newStart);
     this.selectedEndYear.set(newEnd);
   }
@@ -492,7 +461,6 @@ export class HistoricalDataAlignerComponent implements OnInit {
   @HostListener('window:mouseup')
   onDragEnd() {
     if (this.isDragging) {
-      // Only snap and update scenario when drag actually ends
       this.snapToValidRange();
       this.updateScenarioDates();
     }
@@ -507,11 +475,9 @@ export class HistoricalDataAlignerComponent implements OnInit {
     let start = this.selectedStartYear();
     let end = this.selectedEndYear();
 
-    // Clamp to valid range boundaries
     if (start < valid.start) start = valid.start;
     if (end > valid.end) end = valid.end;
     
-    // Ensure start < end
     if (start >= end) {
         start = valid.start;
         end = Math.min(valid.end, valid.start + 5);
@@ -535,7 +501,7 @@ export class HistoricalDataAlignerComponent implements OnInit {
     const remainder = yearFloat - year;
     const days = Math.floor(remainder * 365);
     const date = new Date(year, 0, 1);
-    date.setDate(days + 1); // +1 because Jan 1 is day 1
+    date.setDate(days + 1);
     return date;
   }
 
@@ -568,7 +534,7 @@ export class HistoricalDataAlignerComponent implements OnInit {
     });
   }
 
-  // --- Calculations & Outputs ---
+  // --- Calculations ---
 
   calculateTradingDays(): number {
     const s = this.scenario();
@@ -579,7 +545,6 @@ export class HistoricalDataAlignerComponent implements OnInit {
       start = new Date(s.startDate);
       end = new Date(s.endDate);
     } else {
-      // Fallback to year signals
       start = this.yearToDate(this.selectedStartYear());
       end = this.yearToDate(this.selectedEndYear());
     }
@@ -594,17 +559,15 @@ export class HistoricalDataAlignerComponent implements OnInit {
   }
 
   private emitScenario(s: HistoricScenario) {
-    this.localScenario.set(s); // Update local state immediately
+    this.localScenario.set(s);
     this.scenarioChanged.emit(s);
   }
 
-  // Convert screen X coordinate to SVG viewBox X coordinate
   private screenToSvgX(screenX: number): number {
     if (!this.timelineSvg?.nativeElement) return screenX;
     const svg = this.timelineSvg.nativeElement;
     const rect = svg.getBoundingClientRect();
     const viewBox = svg.viewBox.baseVal;
-    // Scale from screen coordinates to viewBox coordinates
     return ((screenX - rect.left) / rect.width) * viewBox.width;
   }
 }

@@ -366,7 +366,7 @@ function getTickerName(p) {
 export function reconcileCash(portfolio, requiredCash, history, day, r, costs) {
     const deficit = requiredCash - portfolio.Cash;
     if (deficit <= 0) {
-        return [new Portfolio(portfolio.Cash - requiredCash, portfolio.Positions, portfolio.CompositeRegistry), empty()];
+        return [new Portfolio(portfolio.Cash - requiredCash, portfolio.Positions, portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD), empty()];
     }
     else {
         const sortedCandidates = sortBy((c_1) => {
@@ -409,7 +409,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r, costs) {
                         totalProceeds = (totalProceeds + netProceeds_1);
                         reductions = FSharpMap__Add(reductions, shortPos.Id, -unitsToClose + defaultArg(FSharpMap__TryFind(reductions, shortPos.Id), 0));
                         reductions = FSharpMap__Add(reductions, longPos.Id, unitsToClose + defaultArg(FSharpMap__TryFind(reductions, longPos.Id), 0));
-                        transactions = cons(new Transaction(day, `SPREAD_${getTickerName(longPos)}`, "SELL", unitsToClose, 0, netProceeds_1, commission_1, slippageAmount_1, "LIQUIDATION"), transactions);
+                        transactions = cons(new Transaction(day, `SPREAD_${getTickerName(longPos)}`, "SELL", unitsToClose, 0, netProceeds_1, commission_1, slippageAmount_1, 0, "LIQUIDATION"), transactions);
                     }
                     else {
                         const p_1 = cand.fields[0];
@@ -422,7 +422,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r, costs) {
                         currentDeficit = (currentDeficit - netProceeds);
                         totalProceeds = (totalProceeds + netProceeds);
                         reductions = FSharpMap__Add(reductions, p_1.Id, qtyToSell + defaultArg(FSharpMap__TryFind(reductions, p_1.Id), 0));
-                        transactions = cons(new Transaction(day, getTickerName(p_1), "SELL", qtyToSell, unitVal * (1 - (slippagePct / 2)), netProceeds, commission, slippageAmount, "LIQUIDATION"), transactions);
+                        transactions = cons(new Transaction(day, getTickerName(p_1), "SELL", qtyToSell, unitVal * (1 - (slippagePct / 2)), netProceeds, commission, slippageAmount, 0, "LIQUIDATION"), transactions);
                     }
                 }
             }
@@ -431,7 +431,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r, costs) {
             disposeSafe(enumerator);
         }
         if (currentDeficit > 0) {
-            return [new Portfolio(0, empty(), portfolio.CompositeRegistry), empty()];
+            return [new Portfolio(0, empty(), portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD), empty()];
         }
         else {
             const newPositions = filter((p_3) => (Math.abs(p_3.Quantity) > 1E-09), map((p_2) => {
@@ -443,7 +443,7 @@ export function reconcileCash(portfolio, requiredCash, history, day, r, costs) {
                     return new PositionInstance(p_2.Id, p_2.GroupId, p_2.DefinitionName, p_2.ComponentName, p_2.ParentId, p_2.BuyPrice, p_2.BuyDate, p_2.Quantity - matchValue, p_2.Instrument);
                 }
             }, portfolio.Positions));
-            return [new Portfolio(totalProceeds - deficit, newPositions, portfolio.CompositeRegistry), transactions];
+            return [new Portfolio(totalProceeds - deficit, newPositions, portfolio.CompositeRegistry, portfolio.TaxLots, portfolio.TaxLiabilityYTD, portfolio.RealizedGainsYTD), transactions];
         }
     }
 }

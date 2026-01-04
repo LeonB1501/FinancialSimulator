@@ -6,7 +6,8 @@ import { HeaderComponent } from '@shared/components/header/header.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { ModeSelectionComponent } from './steps/mode-selection/mode-selection.component';
 import { ModelConfigComponent } from './steps/model-config/model-config.component';
-import { ExecutionCostsComponent, CostsValidationResult } from './steps/execution-costs/execution-costs.component'; // NEW IMPORT
+import { ExecutionCostsComponent, CostsValidationResult } from './steps/execution-costs/execution-costs.component';
+import { TaxConfigComponent } from './steps/tax-config/tax-config.component';
 import { SimulationParamsComponent } from './steps/simulation-params/simulation-params.component';
 import { DslEditorComponent } from './steps/dsl-editor/dsl-editor.component';
 import { ReviewComponent } from './steps/review/review.component';
@@ -24,7 +25,9 @@ import {
   StrategyStatus,
   HistoricScenario,
   ExecutionCosts,
-  DEFAULT_EXECUTION_COSTS
+  DEFAULT_EXECUTION_COSTS,
+  TaxConfig,
+  DEFAULT_TAX_CONFIG
 } from '@core/models';
 
 interface WizardStep {
@@ -45,7 +48,8 @@ interface WizardStep {
     LoadingSpinnerComponent,
     ModeSelectionComponent,
     ModelConfigComponent,
-    ExecutionCostsComponent, // NEW IMPORT
+    ExecutionCostsComponent,
+    TaxConfigComponent,
     SimulationParamsComponent,
     DslEditorComponent,
     ReviewComponent,
@@ -138,8 +142,8 @@ interface WizardStep {
 
           <!-- Step Content -->
           <div class="mx-auto p-6 lg:p-10 transition-all duration-300"
-               [class.max-w-4xl]="currentStep() !== 4"
-               [class.max-w-[1600px]]="currentStep() === 4">
+               [class.max-w-4xl]="currentStep() !== 5"
+               [class.max-w-[1600px]]="currentStep() === 5">
             
             @switch (currentStep()) {
               @case (0) {
@@ -165,7 +169,6 @@ interface WizardStep {
                 }
               }
               @case (2) {
-                <!-- EXECUTION COSTS STEP -->
                 <qs-execution-costs
                   [draft]="strategyService.draft()"
                   (costsChanged)="onCostsChanged($event)"
@@ -173,6 +176,12 @@ interface WizardStep {
                 />
               }
               @case (3) {
+                <qs-tax-config
+                  [draft]="strategyService.draft()"
+                  (configChanged)="onTaxConfigChanged($event)"
+                />
+              }
+              @case (4) {
                 @if (isHistoricMode()) {
                   <qs-historical-params
                     [draft]="strategyService.draft()"
@@ -186,13 +195,13 @@ interface WizardStep {
                   />
                 }
               }
-              @case (4) {
+              @case (5) {
                 <qs-dsl-editor
                   [draft]="strategyService.draft()"
                   (codeChanged)="onDslCodeChanged($event)"
                 />
               }
-              @case (5) {
+              @case (6) {
                 <qs-review
                   [draft]="strategyService.draft()"
                   (nameChanged)="onNameChanged($event)"
@@ -284,13 +293,19 @@ export class StrategyBuilderComponent implements OnInit {
       isComplete: () => (this.strategyService.draft().indices?.length ?? 0) > 0,
       isValid: () => (this.strategyService.draft().indices?.length ?? 0) > 0,
     },
-    // NEW STEP
     {
       id: 'costs',
       label: 'Execution & Costs',
       shortLabel: 'Costs',
       isComplete: () => !!this.strategyService.draft().executionCosts,
       isValid: () => this.costsValidation().isValid,
+    },
+    {
+      id: 'tax',
+      label: 'Tax Configuration',
+      shortLabel: 'Tax',
+      isComplete: () => !!this.strategyService.draft().taxConfig,
+      isValid: () => true,
     },
     {
       id: 'params',
@@ -338,7 +353,16 @@ export class StrategyBuilderComponent implements OnInit {
       this.loadStrategy(editId);
     } else {
       this.strategyService.clearDraft();
+      // Initialize defaults to prevent "skipped" steps
+      this.initializeDefaults();
     }
+  }
+
+  private initializeDefaults() {
+    this.strategyService.updateDraft({
+      executionCosts: DEFAULT_EXECUTION_COSTS,
+      taxConfig: DEFAULT_TAX_CONFIG
+    });
   }
 
   private loadStrategy(id: string): void {
@@ -352,7 +376,8 @@ export class StrategyBuilderComponent implements OnInit {
         indices: strategy.indices,
         correlationMatrix: strategy.correlationMatrix,
         customTickers: strategy.customTickers,
-        executionCosts: strategy.executionCosts, // Load costs
+        executionCosts: strategy.executionCosts || DEFAULT_EXECUTION_COSTS, 
+        taxConfig: strategy.taxConfig || DEFAULT_TAX_CONFIG,
         simulationConfig: strategy.simulationConfig,
         dsl: strategy.dsl,
       });
@@ -463,6 +488,10 @@ export class StrategyBuilderComponent implements OnInit {
     this.costsValidation.set(validation);
   }
 
+  onTaxConfigChanged(config: TaxConfig): void {
+    this.strategyService.updateDraft({ taxConfig: config });
+  }
+
   onScenarioChanged(scenario: any): void {
     this.strategyService.updateDraft({ scenario });
   }
@@ -516,7 +545,8 @@ export class StrategyBuilderComponent implements OnInit {
       indices: draft.indices || [],
       correlationMatrix: draft.correlationMatrix || { indices: [], matrix: [] },
       customTickers: draft.customTickers || [],
-      executionCosts: draft.executionCosts || DEFAULT_EXECUTION_COSTS, // Include Costs
+      executionCosts: draft.executionCosts || DEFAULT_EXECUTION_COSTS,
+      taxConfig: draft.taxConfig || DEFAULT_TAX_CONFIG,
       simulationConfig: { ...DEFAULT_SIMULATION_CONFIG, ...draft.simulationConfig },
       dsl: draft.dsl || { code: '', isValid: true, errors: [], warnings: [] },
       status: isDraft ? StrategyStatus.Draft : StrategyStatus.Ready,
