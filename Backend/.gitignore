@@ -1,0 +1,31 @@
+﻿# --- .NET Core ---
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# --- JetBrains (Rider) ---
+.idea/
+*.sln.DotSettings.user
+
+# --- Web / Node / Fable ---
+node_modules/
+fable_build/
+package-lock.json
+# Keep package.json, but ignore the lock file if you prefer, 
+# though usually it's better to commit lock files. 
+# Since this is a migration, let's keep package-lock.json unless it causes issues.
+
+# --- OS Junk ---
+.DS_Store
+Thumbs.db
+
+# --- Docker ---
+.docker/
+
+# --- Secrets (Important!) ---
+# If you put real passwords in appsettings, be careful.
+# Usually we ignore Development settings if they contain secrets.
+# StrategyEngine.API/appsettings.Development.json

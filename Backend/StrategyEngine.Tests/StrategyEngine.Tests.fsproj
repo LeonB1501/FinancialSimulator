@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 1. RESTORE NUGET PACKAGES (This brings back xUnit) -->
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="FsUnit.xUnit" Version="7.1.1" />
+    <PackageReference Include="FsCheck.Xunit" Version="3.3.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 2. REFERENCE THE MAIN PROJECT (This lets you see AST, RiskManager, etc.) -->
+    <ProjectReference Include="..\StrategyEngine\StrategyEngine.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 3. INCLUDE ONLY TEST FILES -->
+    <Compile Include="Language\LexerTests.fs" />
+    <Compile Include="Language\ParserTests.fs" />
+    <Compile Include="Language\ElaboratorTests.fs" />
+
+    <!-- New Simulation Tests -->
+    <Compile Include="Simulation\FinancialMathTests.fs" />
+    <Compile Include="Simulation\PricingModelsTests.fs" />
+    <Compile Include="Simulation\IndicatorsTests.fs" />
+    <Compile Include="Simulation\StochasticTests.fs" />
+    <Compile Include="Simulation\PathGeneratorTests.fs" />
+
+    <!-- Engine Tests -->
+    <Compile Include="Engine\RiskManagerTests.fs" />
+    <Compile Include="Engine\TradeExecutorTests.fs" />
+    <Compile Include="Engine\InterpreterTests_ControlFlow.fs" />
+    <Compile Include="Engine\PortfolioQueriesTests.fs" />
+    <Compile Include="Engine\ReconcilerTests.fs" />
+    <Compile Include="Engine\SimulationEngineIntegrationTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Interpreter\InterpreterTests_Expressions.fs" />
+    <Compile Include="Interpreter\InterpreterTests_Actions.fs" />
+    <Compile Include="Interpreter\InterpreterTests_Integration.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Analytics\AnalyticsTests.fs" />
+  </ItemGroup>
+
+</Project>

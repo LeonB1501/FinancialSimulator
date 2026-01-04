@@ -1,0 +1,6 @@
+@StrategyEngine.API_HostAddress = http://localhost:5069
+
+GET {{StrategyEngine.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

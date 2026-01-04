@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 1. Language Core (Independent) -->
+    <Compile Include="Language\AST.fs" />
+    <Compile Include="Language\Tokens.fs" />
+    <Compile Include="Language\Parser.fs" />
+    <Compile Include="Language\Lexer.fs" />
+    <Compile Include="Language\Types.fs" />
+    <Compile Include="Language\Elaborator.fs" />
+
+    <!-- 2. Base Engine Types -->
+    <Compile Include="Engine\EngineTypes.fs" />
+
+    <!-- 3. Simulation / Math (MUST be before Engine logic) -->
+    <Compile Include="Simulation\FinancialMath.fs" />  <!-- MOVED UP -->
+    <Compile Include="Simulation\Indicators.fs" />
+    <Compile Include="Simulation\PricingModels.fs" />
+    <Compile Include="Simulation\Stochastic.fs" />
+    <Compile Include="Simulation\PathGenerator.fs" />  <!-- Depends on FinancialMath -->
+
+    <!-- 4. Engine Components -->
+    <Compile Include="Engine\PortfolioQueries.fs" />   <!-- MOVED UP -->
+    <Compile Include="Engine\RiskManager.fs" />
+    <Compile Include="Engine\TradeExecutor.fs" />
+
+    <!-- 5. Interpreter (Depends on EVERYTHING above) -->
+    <Compile Include="Engine\Interpreter.fs" />
+    <Compile Include="Engine\Reconciler.fs" />
+    <Compile Include="Engine\StrategyEvaluator.fs" />
+    <Compile Include="Engine\SimulationEngine.fs" />
+    <Compile Include="Simulation\HistoricSimulator.fs" />
+    <Compile Include="Analytics\AnalyticsTypes.fs" />
+    <Compile Include="Analytics\Metrics.fs" />
+    <Compile Include="Analytics\Aggregator.fs" />
+    <Content Include="StrategyEngine.Fable.fsproj" />
+    <Compile Include="DebugInterop.fs" />        <!-- MOVED DOWN -->
+  </ItemGroup>
+</Project>
