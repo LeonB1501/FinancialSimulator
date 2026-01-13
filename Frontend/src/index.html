@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>QuantSim - Monte Carlo Strategy Backtesting</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Backtest complex investment strategies with Monte Carlo simulations. Support for options, spreads, and custom DSL.">
+  <meta name="theme-color" content="#1E3A5F">
+  
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <meta property="og:title" content="QuantSim - Monte Carlo Strategy Backtesting">
+  <meta property="og:description" content="Backtest complex investment strategies with Monte Carlo simulations.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://quantsim.app">
+
+  <script>
+    (function() {
+      const THEME_KEY = 'quantsim_theme';
+      const stored = localStorage.getItem(THEME_KEY);
+      
+      let theme = stored;
+      if (!theme) {
+        theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+      
+      const themeColor = theme === 'dark' ? '#0F172A' : '#1E3A5F';
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
+    })();
+  </script>
+</head>
+<body>
+  <qs-root></qs-root>
+  
+  <style>
+    .app-loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F8FAFC;
+      z-index: 9999;
+      transition: background-color 0.3s ease;
+    }
+    
+    .dark .app-loading {
+      background: #0F172A;
+    }
+    
+    .app-loading-content {
+      text-align: center;
+    }
+    
+    .app-loading-logo {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, #00D4AA, #00A080);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 2s infinite;
+    }
+    
+    .app-loading-logo svg {
+      width: 36px;
+      height: 36px;
+      color: white;
+    }
+    
+    .app-loading-text {
+      font-family: 'Inter', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: #1E3A5F;
+      transition: color 0.3s ease;
+    }
+    
+    .dark .app-loading-text {
+      color: #00D4AA;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
+  </style>
+  
+  <div class="app-loading" id="app-loading">
+    <div class="app-loading-content">
+      <div class="app-loading-logo">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+      </div>
+      <div class="app-loading-text">QuantSim</div>
+    </div>
+  </div>
+  
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        const loader = document.getElementById('app-loading');
+        if (loader) {
+          loader.style.opacity = '0';
+          loader.style.transition = 'opacity 0.3s';
+          setTimeout(function() {
+            loader.remove();
+          }, 300);
+        }
+      }, 100);
+    });
+  </script>
+</body>
+</html>

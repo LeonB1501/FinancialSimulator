@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <DefineConstants>FABLE_COMPILER</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="4.3.0" />
+    <PackageReference Include="Thoth.Json" Version="10.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 1. Language Primitives -->
+    <Compile Include="Language\AST.fs" />
+
+    <!-- 2. Engine Types -->
+    <Compile Include="Engine\EngineTypes.fs" />
+
+    <!-- 3. Math & Simulation -->
+    <Compile Include="Simulation\FinancialMath.fs" />
+    <Compile Include="Simulation\Stochastic.fs" /> <!-- Stochastic depends on Math -->
+    <Compile Include="Simulation\PricingModels.fs" />
+    <Compile Include="Simulation\Indicators.fs" />
+    <Compile Include="Simulation\PathGenerator.fs" />
+
+    <!-- 4. Engine Logic -->
+    <Compile Include="Engine\PortfolioQueries.fs" />
+    <Compile Include="Engine\RiskManager.fs" />
+    <Compile Include="Engine\TradeExecutor.fs" />
+
+    <!-- 5. Interpreter -->
+    <Compile Include="Engine\Interpreter.fs" />
+
+    <!-- 6. Reconciliation (Must be before Evaluator) -->
+    <Compile Include="Engine\Reconciler.fs" />
+
+    <!-- 7. Language Parsing -->
+    <Compile Include="Language\Tokens.fs" />
+    <Compile Include="Language\Lexer.fs" />
+    <Compile Include="Language\Parser.fs" />
+    <Compile Include="Language\Types.fs" />
+    <Compile Include="Language\Elaborator.fs" />
+
+    <!-- 8. Orchestration & Analytics -->
+    <Compile Include="Engine\StrategyEvaluator.fs" />
+    <Compile Include="Engine\SimulationEngine.fs" />
+    <Compile Include="Analytics\AnalyticsTypes.fs" />
+    <Compile Include="Analytics\Metrics.fs" />
+    <Compile Include="Analytics\Aggregator.fs" />
+
+    <!-- 9. The Bridge -->
+    <Compile Include="Worker.fs" />
+  </ItemGroup>
+
+</Project>

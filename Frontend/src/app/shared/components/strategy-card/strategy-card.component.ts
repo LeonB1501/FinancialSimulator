@@ -1,0 +1,146 @@
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { StrategySummary, StrategyStatus, SimulationMode, StochasticModel } from '@core/models';
+
+@Component({
+  selector: 'qs-strategy-card',
+  standalone: true,
+  imports: [CommonModule, RouterLink, DatePipe],
+  template: `
+    <div class="card-hover p-6 group">
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-4">
+        <div class="flex-1 min-w-0">
+          <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-100 truncate">{{ strategy.name }}</h3>
+          <p class="text-sm text-surface-500 dark:text-surface-400 mt-1">{{ modelLabel }} • {{ modeLabel }}</p>
+        </div>
+        <span [class]="statusClasses">
+          {{ statusLabel }}
+        </span>
+      </div>
+
+      <!-- Indices -->
+      <div class="flex flex-wrap gap-2 mb-4">
+        @for (index of strategy.indices; track index) {
+          <span class="px-2.5 py-1 bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300 text-xs font-medium rounded-full">
+            {{ index }}
+          </span>
+        }
+      </div>
+
+      <!-- Meta -->
+      <p class="text-sm text-surface-400 mb-4">
+        Updated {{ strategy.updatedAt | date:'MMM d, y, h:mm a' }}
+      </p>
+
+      <!-- Actions -->
+      <div class="flex items-center space-x-3 pt-4 border-t border-surface-100 dark:border-surface-700">
+        @if (strategy.latestResultId) {
+          <a 
+            [routerLink]="strategy.mode === 'historic' ? ['/results/historic', strategy.id] : ['/results', strategy.latestResultId]"
+            class="flex-1 btn-primary btn-sm text-center"
+          >
+            View Results
+          </a>
+          <!-- Small Run Button for re-running -->
+          <button 
+            (click)="run.emit(strategy)"
+            class="btn-secondary btn-sm px-3"
+            title="Run Simulation Again"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </button>
+        } @else {
+          <button 
+            (click)="run.emit(strategy)"
+            class="flex-1 btn-primary btn-sm"
+          >
+            Run Simulation
+          </button>
+        }
+        
+        <button 
+          (click)="edit.emit(strategy)"
+          class="btn-secondary btn-sm px-3"
+          title="Edit Strategy"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+        </button>
+        <button 
+          (click)="delete.emit(strategy)"
+          class="btn-ghost btn-sm px-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+          title="Delete Strategy"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `,
+})
+export class StrategyCardComponent {
+  @Input({ required: true }) strategy!: StrategySummary;
+  
+  @Output() run = new EventEmitter<StrategySummary>();
+  @Output() edit = new EventEmitter<StrategySummary>();
+  @Output() delete = new EventEmitter<StrategySummary>();
+
+  get modelLabel(): string {
+    const labels: Record<StochasticModel, string> = {
+      [StochasticModel.Heston]: 'Heston',
+      [StochasticModel.GBM]: 'GBM',
+      [StochasticModel.GARCH]: 'GARCH',
+      [StochasticModel.BlockedBootstrap]: 'Bootstrap',
+      [StochasticModel.RegimeSwitching]: 'Regime',
+    };
+    return labels[this.strategy.model] || this.strategy.model;
+  }
+
+  get modeLabel(): string {
+    switch (this.strategy.mode) {
+      case SimulationMode.Accumulation: return 'Accumulation';
+      case SimulationMode.Retirement: return 'Retirement';
+      case SimulationMode.Historic: return 'Historic Backtest';
+      default: return this.strategy.mode;
+    }
+  }
+
+  get statusLabel(): string {
+    // If we have results, override status to "Completed" for display
+    if (this.strategy.latestResultId) return 'Completed';
+
+    const labels: Record<StrategyStatus, string> = {
+      [StrategyStatus.Draft]: 'Draft',
+      [StrategyStatus.Ready]: 'Ready',
+      [StrategyStatus.Running]: 'Running',
+      [StrategyStatus.Completed]: 'Completed',
+      [StrategyStatus.Failed]: 'Failed',
+    };
+    return labels[this.strategy.status] || this.strategy.status;
+  }
+
+  get statusClasses(): string {
+    const base = 'px-2.5 py-1 text-xs font-medium rounded-full';
+    
+    // Override color if completed
+    if (this.strategy.latestResultId) {
+      return `${base} bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400`;
+    }
+
+    const colors: Record<StrategyStatus, string> = {
+      [StrategyStatus.Draft]: 'bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-300',
+      [StrategyStatus.Ready]: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+      [StrategyStatus.Running]: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+      [StrategyStatus.Completed]: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+      [StrategyStatus.Failed]: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    };
+    return `${base} ${colors[this.strategy.status]}`;
+  }
+}
